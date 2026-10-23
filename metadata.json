@@ -1,0 +1,6 @@
+{
+  "name": "Portal de Estágios - Jogos Digitais",
+  "description": "Sistema completo de cadastro e gerenciamento de estágios para alunos do curso técnico de Programação de Jogos Digitais com operações CRUD em tempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
