@@ -23,20 +23,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// API Endpoints - CRUD de Estágios de Jogos Digitais
+// ==========================================
+// API Endpoints - CRUD de Estágios
+// ==========================================
 
 // 1. LER (Read All com filtros de busca opcionais)
 app.get('/api/estagios', (req: Request, res: Response) => {
   try {
-    let records = storage.getAll();
+    let records = storage.getAllEstagios();
     const query = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
     const statusFilter = typeof req.query.status === 'string' ? req.query.status.trim() : '';
+    const turmaFilter = typeof req.query.turma === 'string' ? req.query.turma.trim() : '';
 
     if (query) {
       records = records.filter(r =>
         r.matricula.toLowerCase().includes(query) ||
         r.nome.toLowerCase().includes(query) ||
         r.localEstagio.toLowerCase().includes(query) ||
+        (r.turma && r.turma.toLowerCase().includes(query)) ||
+        (r.ano && r.ano.toLowerCase().includes(query)) ||
         (r.area && r.area.toLowerCase().includes(query)) ||
         (r.supervisor && r.supervisor.toLowerCase().includes(query))
       );
@@ -44,6 +49,10 @@ app.get('/api/estagios', (req: Request, res: Response) => {
 
     if (statusFilter && statusFilter !== 'Todos') {
       records = records.filter(r => r.status === statusFilter);
+    }
+
+    if (turmaFilter && turmaFilter !== 'Todas') {
+      records = records.filter(r => r.turma === turmaFilter);
     }
 
     res.json(records);
@@ -56,7 +65,7 @@ app.get('/api/estagios', (req: Request, res: Response) => {
 // 2. LER UM (Read by ID)
 app.get('/api/estagios/:id', (req: Request, res: Response) => {
   try {
-    const record = storage.getById(req.params.id);
+    const record = storage.getEstagioById(req.params.id);
     if (!record) {
       return res.status(404).json({ error: 'Registro de estágio não encontrado.' });
     }
@@ -72,6 +81,9 @@ app.post('/api/estagios', (req: Request, res: Response) => {
     const {
       matricula,
       nome,
+      turma,
+      ano,
+      sexo,
       localEstagio,
       area,
       status,
@@ -91,9 +103,12 @@ app.post('/api/estagios', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'O campo Local de Estágio é obrigatório.' });
     }
 
-    const created = storage.create({
+    const created = storage.createEstagio({
       matricula: String(matricula).trim(),
       nome: String(nome).trim(),
+      turma: turma ? String(turma).trim() : undefined,
+      ano: ano ? String(ano).trim() : undefined,
+      sexo: sexo || undefined,
       localEstagio: String(localEstagio).trim(),
       area: area ? String(area).trim() : 'Desenvolvimento de Jogos Digitais',
       status: status || 'Ativo',
@@ -117,6 +132,9 @@ app.put('/api/estagios/:id', (req: Request, res: Response) => {
     const {
       matricula,
       nome,
+      turma,
+      ano,
+      sexo,
       localEstagio,
       area,
       status,
@@ -136,9 +154,12 @@ app.put('/api/estagios/:id', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'O local de estágio não pode ficar em branco.' });
     }
 
-    const updated = storage.update(id, {
+    const updated = storage.updateEstagio(id, {
       ...(matricula && { matricula: String(matricula).trim() }),
       ...(nome && { nome: String(nome).trim() }),
+      ...(turma !== undefined && { turma: String(turma).trim() }),
+      ...(ano !== undefined && { ano: String(ano).trim() }),
+      ...(sexo !== undefined && { sexo }),
       ...(localEstagio && { localEstagio: String(localEstagio).trim() }),
       ...(area !== undefined && { area: String(area).trim() }),
       ...(status && { status }),
@@ -159,7 +180,7 @@ app.put('/api/estagios/:id', (req: Request, res: Response) => {
 app.delete('/api/estagios/:id', (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const success = storage.delete(id);
+    const success = storage.deleteEstagio(id);
     if (!success) {
       return res.status(404).json({ error: 'Registro não encontrado para exclusão.' });
     }
@@ -170,19 +191,80 @@ app.delete('/api/estagios/:id', (req: Request, res: Response) => {
   }
 });
 
-// Reset para dados de demonstração (útil para testes rápidos)
-app.post('/api/estagios/reset-sample', (_req: Request, res: Response) => {
+// ==========================================
+// API Endpoints - Reuniões Mensais & Frequência
+// ==========================================
+
+app.get('/api/reunioes', (_req: Request, res: Response) => {
   try {
-    const records = storage.resetSampleData();
-    res.json({ message: 'Dados restaurados com sucesso.', records });
+    const reunioes = storage.getAllReunioes();
+    res.json(reunioes);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar reuniões.' });
+  }
+});
+
+app.get('/api/reunioes/:id', (req: Request, res: Response) => {
+  try {
+    const reuniao = storage.getReuniaoById(req.params.id);
+    if (!reuniao) {
+      return res.status(404).json({ error: 'Reunião não encontrada.' });
+    }
+    res.json(reuniao);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao buscar reunião.' });
+  }
+});
+
+app.post('/api/reunioes', (req: Request, res: Response) => {
+  try {
+    const { mesAno, dataReuniao, pauta, observacoes } = req.body;
+    if (!mesAno || !dataReuniao || !pauta) {
+      return res.status(400).json({ error: 'Mês/Ano, Data da Reunião e Pauta são obrigatórios.' });
+    }
+    const reuniao = storage.createReuniao({ mesAno, dataReuniao, pauta, observacoes });
+    res.status(201).json(reuniao);
   } catch (err: any) {
-    res.status(500).json({ error: 'Erro ao restaurar dados de demonstração.' });
+    res.status(400).json({ error: err.message || 'Erro ao criar reunião.' });
+  }
+});
+
+app.put('/api/reunioes/:id', (req: Request, res: Response) => {
+  try {
+    const updated = storage.updateReuniao(req.params.id, req.body);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Erro ao atualizar reunião.' });
+  }
+});
+
+app.put('/api/reunioes/:id/frequencia', (req: Request, res: Response) => {
+  try {
+    const { alunoId, status, justificativa } = req.body;
+    if (!alunoId || !status) {
+      return res.status(400).json({ error: 'Aluno e Status de frequência são obrigatórios.' });
+    }
+    const updated = storage.updateFrequencia(req.params.id, alunoId, status, justificativa);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Erro ao registrar frequência.' });
+  }
+});
+
+app.delete('/api/reunioes/:id', (req: Request, res: Response) => {
+  try {
+    const success = storage.deleteReuniao(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Reunião não encontrada.' });
+    }
+    res.json({ success: true, message: 'Reunião excluída com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir reunião.' });
   }
 });
 
 async function startServer() {
   if (!isProduction) {
-    // Modo Desenvolvimento: Conecta Vite Dev Server via middlewares
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -190,7 +272,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Modo Produção: Serve arquivos estáticos gerados em dist
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req: Request, res: Response) => {

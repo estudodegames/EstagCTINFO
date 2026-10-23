@@ -9,6 +9,9 @@ export interface EstagioRecord {
   id: string;
   matricula: string;
   nome: string;
+  turma?: string;
+  ano?: string;
+  sexo?: 'Masculino' | 'Feminino' | 'Outro';
   localEstagio: string;
   area?: string;
   status?: 'Ativo' | 'Concluído' | 'Pendente';
@@ -20,86 +23,34 @@ export interface EstagioRecord {
   atualizadoEm: string;
 }
 
-const DATA_DIR = path.join(__dirname, 'data');
-const DATA_FILE = path.join(DATA_DIR, 'estagios.json');
+export interface FrequenciaItem {
+  status: 'Presença' | 'Falta';
+  justificativa?: string;
+  dataRegistro: string;
+}
 
-// Dados iniciais específicos para o Curso Técnico de Programação de Jogos Digitais
-const INITIAL_RECORDS: EstagioRecord[] = [
-  {
-    id: 'est-1',
-    matricula: '2024-JOG-0142',
-    nome: 'Lucas Gabriel Albuquerque',
-    localEstagio: 'PixelForge Game Studio',
-    area: 'Programação de Jogos 2D / Unity C#',
-    status: 'Ativo',
-    dataInicio: '2024-02-15',
-    cargaHoraria: '30h',
-    supervisor: 'Guilherme Bastos (Lead Dev)',
-    observacoes: 'Desenvolvimento de mecânicas de combate e integração de animações.',
-    criadoEm: new Date('2024-02-10T10:00:00Z').toISOString(),
-    atualizadoEm: new Date('2024-02-10T10:00:00Z').toISOString(),
-  },
-  {
-    id: 'est-2',
-    matricula: '2024-JOG-0158',
-    nome: 'Mariana Duarte Siqueira',
-    localEstagio: 'IronByte Interactive',
-    area: 'Programação de Inteligência Artificial / Unreal C++',
-    status: 'Ativo',
-    dataInicio: '2024-03-01',
-    cargaHoraria: '30h',
-    supervisor: 'Camila Rocha (Diretora Técnica)',
-    observacoes: 'Implementação de Behavior Trees e navegação de NPCs.',
-    criadoEm: new Date('2024-02-25T14:30:00Z').toISOString(),
-    atualizadoEm: new Date('2024-02-25T14:30:00Z').toISOString(),
-  },
-  {
-    id: 'est-3',
-    matricula: '2024-JOG-0189',
-    nome: 'Rodrigo Medeiros Fontes',
-    localEstagio: 'MadVoxel Entretenimento Digital',
-    area: 'Programação de Shaders & Efeitos Visuais',
-    status: 'Ativo',
-    dataInicio: '2024-04-10',
-    cargaHoraria: '20h',
-    supervisor: 'Alexandre Pires (Tech Artist)',
-    observacoes: 'HLSL e otimização de renderização para dispositivos mobile.',
-    criadoEm: new Date('2024-04-05T09:15:00Z').toISOString(),
-    atualizadoEm: new Date('2024-04-05T09:15:00Z').toISOString(),
-  },
-  {
-    id: 'est-4',
-    matricula: '2023-JOG-0094',
-    nome: 'Beatriz Vasconcelos Rios',
-    localEstagio: 'Hoplon Infotainment Labs',
-    area: 'Backend Multiplayer & Redes para Jogos',
-    status: 'Concluído',
-    dataInicio: '2023-08-01',
-    cargaHoraria: '30h',
-    supervisor: 'Marcelo Zanin (Engenheiro de Redes)',
-    observacoes: 'Carga horária total de 400 horas concluída com relatório aprovado.',
-    criadoEm: new Date('2023-07-28T11:00:00Z').toISOString(),
-    atualizadoEm: new Date('2024-01-20T16:00:00Z').toISOString(),
-  },
-  {
-    id: 'est-5',
-    matricula: '2024-JOG-0205',
-    nome: 'Felipe Santana Moreira',
-    localEstagio: 'Aquiris Studios / Epic Games Brasil',
-    area: 'Quality Assurance (QA) & Testes Automatizados',
-    status: 'Pendente',
-    dataInicio: '2024-11-01',
-    cargaHoraria: '20h',
-    supervisor: 'Juliana Prado (Coordenadora de QA)',
-    observacoes: 'Aguardando validação final do termo de compromisso pela coordenação.',
-    criadoEm: new Date('2024-10-15T08:20:00Z').toISOString(),
-    atualizadoEm: new Date('2024-10-15T08:20:00Z').toISOString(),
-  }
-];
+export interface ReuniaoMensal {
+  id: string;
+  mesAno: string; // Ex: "2026-10"
+  dataReuniao: string; // Ex: "2026-10-22"
+  pauta: string;
+  observacoes?: string;
+  presencas: {
+    [alunoId: string]: FrequenciaItem;
+  };
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+const DATA_DIR = path.join(__dirname, 'data');
+const ESTAGIOS_FILE = path.join(DATA_DIR, 'estagios.json');
+const REUNIOES_FILE = path.join(DATA_DIR, 'reunioes.json');
 
 class StorageService {
-  private memoryCache: EstagioRecord[] = [];
-  private isLoaded = false;
+  private estagiosCache: EstagioRecord[] = [];
+  private reunioesCache: ReuniaoMensal[] = [];
+  private isEstagiosLoaded = false;
+  private isReunioesLoaded = false;
 
   private ensureDir() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -107,63 +58,63 @@ class StorageService {
     }
   }
 
-  private load(): EstagioRecord[] {
+  // --- ESTÁGIOS ---
+
+  private loadEstagios(): EstagioRecord[] {
     this.ensureDir();
-    if (!fs.existsSync(DATA_FILE)) {
-      this.memoryCache = [];
-      this.persist();
-      this.isLoaded = true;
-      return this.memoryCache;
+    if (!fs.existsSync(ESTAGIOS_FILE)) {
+      this.estagiosCache = [];
+      this.persistEstagios();
+      this.isEstagiosLoaded = true;
+      return this.estagiosCache;
     }
 
     try {
-      const content = fs.readFileSync(DATA_FILE, 'utf-8');
+      const content = fs.readFileSync(ESTAGIOS_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        this.memoryCache = parsed;
+        this.estagiosCache = parsed;
       } else {
-        this.memoryCache = [];
-        this.persist();
+        this.estagiosCache = [];
+        this.persistEstagios();
       }
     } catch (err) {
-      console.error('[StorageService] Erro ao ler arquivo de dados:', err);
-      this.memoryCache = [];
-      this.persist();
+      console.error('[StorageService] Erro ao ler estagios.json:', err);
+      this.estagiosCache = [];
+      this.persistEstagios();
     }
-    this.isLoaded = true;
-    return this.memoryCache;
+    this.isEstagiosLoaded = true;
+    return this.estagiosCache;
   }
 
-  private persist() {
+  private persistEstagios() {
     this.ensureDir();
-    const tempFile = `${DATA_FILE}.tmp`;
-    fs.writeFileSync(tempFile, JSON.stringify(this.memoryCache, null, 2), 'utf-8');
-    fs.renameSync(tempFile, DATA_FILE);
+    const tempFile = `${ESTAGIOS_FILE}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(this.estagiosCache, null, 2), 'utf-8');
+    fs.renameSync(tempFile, ESTAGIOS_FILE);
   }
 
-  public getAll(): EstagioRecord[] {
-    if (!this.isLoaded) {
-      this.load();
-    }
-    return [...this.memoryCache];
+  public getAllEstagios(): EstagioRecord[] {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
+    return [...this.estagiosCache];
   }
 
-  public getById(id: string): EstagioRecord | undefined {
-    if (!this.isLoaded) this.load();
-    return this.memoryCache.find(r => r.id === id);
+  public getEstagioById(id: string): EstagioRecord | undefined {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
+    return this.estagiosCache.find(r => r.id === id);
   }
 
-  public getByMatricula(matricula: string): EstagioRecord | undefined {
-    if (!this.isLoaded) this.load();
+  public getEstagioByMatricula(matricula: string): EstagioRecord | undefined {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
     const normalized = matricula.trim().toLowerCase();
-    return this.memoryCache.find(r => r.matricula.trim().toLowerCase() === normalized);
+    return this.estagiosCache.find(r => r.matricula.trim().toLowerCase() === normalized);
   }
 
-  public create(data: Omit<EstagioRecord, 'id' | 'criadoEm' | 'atualizadoEm'>): EstagioRecord {
-    if (!this.isLoaded) this.load();
+  public createEstagio(data: Omit<EstagioRecord, 'id' | 'criadoEm' | 'atualizadoEm'>): EstagioRecord {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
 
     const normalizedMatricula = data.matricula.trim();
-    if (this.getByMatricula(normalizedMatricula)) {
+    if (this.getEstagioByMatricula(normalizedMatricula)) {
       throw new Error(`A matrícula "${normalizedMatricula}" já está cadastrada para outro aluno.`);
     }
 
@@ -173,30 +124,32 @@ class StorageService {
       id: 'est-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       matricula: normalizedMatricula,
       nome: data.nome.trim(),
+      turma: data.turma ? data.turma.trim() : undefined,
+      ano: data.ano ? data.ano.trim() : undefined,
+      sexo: data.sexo || undefined,
       localEstagio: data.localEstagio.trim(),
       criadoEm: now,
       atualizadoEm: now,
     };
 
-    this.memoryCache.unshift(newRecord);
-    this.persist();
+    this.estagiosCache.unshift(newRecord);
+    this.persistEstagios();
     return newRecord;
   }
 
-  public update(id: string, data: Partial<Omit<EstagioRecord, 'id' | 'criadoEm'>>): EstagioRecord {
-    if (!this.isLoaded) this.load();
+  public updateEstagio(id: string, data: Partial<Omit<EstagioRecord, 'id' | 'criadoEm'>>): EstagioRecord {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
 
-    const index = this.memoryCache.findIndex(r => r.id === id);
+    const index = this.estagiosCache.findIndex(r => r.id === id);
     if (index === -1) {
       throw new Error(`Estágio com ID ${id} não foi encontrado.`);
     }
 
-    const current = this.memoryCache[index];
+    const current = this.estagiosCache[index];
 
-    // Se a matrícula foi alterada, verificar se não colide com outro registro
     if (data.matricula) {
       const normalizedMatricula = data.matricula.trim();
-      const existingWithMatricula = this.memoryCache.find(
+      const existingWithMatricula = this.estagiosCache.find(
         r => r.id !== id && r.matricula.trim().toLowerCase() === normalizedMatricula.toLowerCase()
       );
       if (existingWithMatricula) {
@@ -211,32 +164,164 @@ class StorageService {
       criadoEm: current.criadoEm,
       matricula: data.matricula ? data.matricula.trim() : current.matricula,
       nome: data.nome ? data.nome.trim() : current.nome,
+      turma: data.turma !== undefined ? data.turma.trim() : current.turma,
+      ano: data.ano !== undefined ? data.ano.trim() : current.ano,
+      sexo: data.sexo !== undefined ? data.sexo : current.sexo,
       localEstagio: data.localEstagio ? data.localEstagio.trim() : current.localEstagio,
       atualizadoEm: new Date().toISOString(),
     };
 
-    this.memoryCache[index] = updatedRecord;
-    this.persist();
+    this.estagiosCache[index] = updatedRecord;
+    this.persistEstagios();
     return updatedRecord;
   }
 
-  public delete(id: string): boolean {
-    if (!this.isLoaded) this.load();
+  public deleteEstagio(id: string): boolean {
+    if (!this.isEstagiosLoaded) this.loadEstagios();
 
-    const initialLength = this.memoryCache.length;
-    this.memoryCache = this.memoryCache.filter(r => r.id !== id);
+    const initialLength = this.estagiosCache.length;
+    this.estagiosCache = this.estagiosCache.filter(r => r.id !== id);
 
-    if (this.memoryCache.length !== initialLength) {
-      this.persist();
+    if (this.estagiosCache.length !== initialLength) {
+      this.persistEstagios();
       return true;
     }
     return false;
   }
 
-  public resetSampleData(): EstagioRecord[] {
-    this.memoryCache = [...INITIAL_RECORDS];
-    this.persist();
-    return [...this.memoryCache];
+  public clearAllEstagios(): void {
+    this.estagiosCache = [];
+    this.persistEstagios();
+  }
+
+  // --- REUNIÕES MENSAIS E FREQUÊNCIA ---
+
+  private loadReunioes(): ReuniaoMensal[] {
+    this.ensureDir();
+    if (!fs.existsSync(REUNIOES_FILE)) {
+      this.reunioesCache = [];
+      this.persistReunioes();
+      this.isReunioesLoaded = true;
+      return this.reunioesCache;
+    }
+
+    try {
+      const content = fs.readFileSync(REUNIOES_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) {
+        this.reunioesCache = parsed;
+      } else {
+        this.reunioesCache = [];
+        this.persistReunioes();
+      }
+    } catch (err) {
+      console.error('[StorageService] Erro ao ler reunioes.json:', err);
+      this.reunioesCache = [];
+      this.persistReunioes();
+    }
+    this.isReunioesLoaded = true;
+    return this.reunioesCache;
+  }
+
+  private persistReunioes() {
+    this.ensureDir();
+    const tempFile = `${REUNIOES_FILE}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(this.reunioesCache, null, 2), 'utf-8');
+    fs.renameSync(tempFile, REUNIOES_FILE);
+  }
+
+  public getAllReunioes(): ReuniaoMensal[] {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+    return [...this.reunioesCache].sort((a, b) => b.dataReuniao.localeCompare(a.dataReuniao));
+  }
+
+  public getReuniaoById(id: string): ReuniaoMensal | undefined {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+    return this.reunioesCache.find(r => r.id === id);
+  }
+
+  public createReuniao(data: {
+    mesAno: string;
+    dataReuniao: string;
+    pauta: string;
+    observacoes?: string;
+  }): ReuniaoMensal {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+
+    const now = new Date().toISOString();
+    const newReuniao: ReuniaoMensal = {
+      id: 'reu-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+      mesAno: data.mesAno.trim(),
+      dataReuniao: data.dataReuniao.trim(),
+      pauta: data.pauta.trim(),
+      observacoes: data.observacoes ? data.observacoes.trim() : undefined,
+      presencas: {},
+      criadoEm: now,
+      atualizadoEm: now,
+    };
+
+    this.reunioesCache.unshift(newReuniao);
+    this.persistReunioes();
+    return newReuniao;
+  }
+
+  public updateReuniao(id: string, data: Partial<ReuniaoMensal>): ReuniaoMensal {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+
+    const index = this.reunioesCache.findIndex(r => r.id === id);
+    if (index === -1) {
+      throw new Error(`Reunião ${id} não encontrada.`);
+    }
+
+    const current = this.reunioesCache[index];
+    const updated: ReuniaoMensal = {
+      ...current,
+      ...data,
+      id: current.id,
+      presencas: data.presencas || current.presencas,
+      atualizadoEm: new Date().toISOString(),
+    };
+
+    this.reunioesCache[index] = updated;
+    this.persistReunioes();
+    return updated;
+  }
+
+  public updateFrequencia(
+    reuniaoId: string,
+    alunoId: string,
+    status: 'Presença' | 'Falta',
+    justificativa?: string
+  ): ReuniaoMensal {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+
+    const reuniao = this.getReuniaoById(reuniaoId);
+    if (!reuniao) {
+      throw new Error('Reunião não encontrada.');
+    }
+
+    reuniao.presencas[alunoId] = {
+      status,
+      justificativa: justificativa ? justificativa.trim() : undefined,
+      dataRegistro: new Date().toISOString(),
+    };
+    reuniao.atualizadoEm = new Date().toISOString();
+
+    this.persistReunioes();
+    return reuniao;
+  }
+
+  public deleteReuniao(id: string): boolean {
+    if (!this.isReunioesLoaded) this.loadReunioes();
+
+    const initialLength = this.reunioesCache.length;
+    this.reunioesCache = this.reunioesCache.filter(r => r.id !== id);
+
+    if (this.reunioesCache.length !== initialLength) {
+      this.persistReunioes();
+      return true;
+    }
+    return false;
   }
 }
 

@@ -1,32 +1,23 @@
-import { EstagioFormData, EstagioRecord } from '../types.ts';
+import { EstagioFormData, EstagioRecord, ReuniaoMensal } from '../types.ts';
 import { clientStorage } from './clientStorage.ts';
 
-// URL do servidor central na nuvem (Cloud Run)
 const CLOUD_BACKEND_URL = 'https://ais-pre-huldpf6aiilosgwiptzsfk-739851012570.us-east1.run.app';
 const API_URL_KEY = 'estagios_custom_api_url';
 
-/**
- * Obtém a URL base da API REST:
- * - Se estiver rodando no mesmo host (localhost ou run.app): usa caminho relativo '/api/estagios'
- * - Se estiver rodando no Netlify (estagioeter.netlify.app): conecta à URL do servidor central na nuvem
- */
 export function getApiBaseUrl(): string {
-  // Permite override manual caso o usuário queira configurar outra URL
   const customUrl = localStorage.getItem(API_URL_KEY);
   if (customUrl) {
-    return customUrl.replace(/\/$/, '') + '/api/estagios';
+    return customUrl.replace(/\/$/, '') + '/api';
   }
 
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
-    // Se estiver no Netlify ou qualquer outro domínio externo, usa o backend em nuvem
     if (hostname.includes('netlify.app') || hostname.includes('vercel.app') || (!hostname.includes('localhost') && !hostname.includes('run.app'))) {
-      return `${CLOUD_BACKEND_URL}/api/estagios`;
+      return `${CLOUD_BACKEND_URL}/api`;
     }
   }
 
-  // No preview local / Cloud Run do AI Studio
-  return '/api/estagios';
+  return '/api';
 }
 
 export function setCustomApiUrl(url: string | null) {
@@ -44,11 +35,14 @@ export const api = {
     return lastConnectionSuccess;
   },
 
-  async getEstagios(query?: string, status?: string): Promise<EstagioRecord[]> {
-    const baseUrl = getApiBaseUrl();
+  // ================= ESTÁGIOS =================
+
+  async getEstagios(query?: string, status?: string, turma?: string): Promise<EstagioRecord[]> {
+    const baseUrl = `${getApiBaseUrl()}/estagios`;
     const params = new URLSearchParams();
     if (query) params.append('q', query);
     if (status && status !== 'Todos') params.append('status', status);
+    if (turma && turma !== 'Todas') params.append('turma', turma);
 
     const url = `${baseUrl}${params.toString() ? '?' + params.toString() : ''}`;
 
@@ -66,7 +60,6 @@ export const api = {
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         lastConnectionSuccess = true;
-        // Atualiza réplica local com os dados reais do servidor
         if (Array.isArray(data)) {
           clientStorage.importJson(data);
           return data;
@@ -77,16 +70,13 @@ export const api = {
       lastConnectionSuccess = false;
     }
 
-    // Se o backend estiver inacessível, usa o armazenamento local
-    return clientStorage.getAll(query, status);
+    return clientStorage.getAllEstagios(query, status, turma);
   },
 
   async getEstagioById(id: string): Promise<EstagioRecord> {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = `${getApiBaseUrl()}/estagios`;
     try {
-      const res = await fetch(`${baseUrl}/${id}`, {
-        headers: { Accept: 'application/json' },
-      });
+      const res = await fetch(`${baseUrl}/${id}`, { headers: { Accept: 'application/json' } });
       if (res.ok) {
         lastConnectionSuccess = true;
         return await res.json();
@@ -95,13 +85,13 @@ export const api = {
       lastConnectionSuccess = false;
     }
 
-    const item = clientStorage.getById(id);
+    const item = clientStorage.getEstagioById(id);
     if (!item) throw new Error('Estágio não encontrado');
     return item;
   },
 
   async createEstagio(data: EstagioFormData): Promise<EstagioRecord> {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = `${getApiBaseUrl()}/estagios`;
 
     try {
       const res = await fetch(baseUrl, {
@@ -120,24 +110,21 @@ export const api = {
           throw new Error(json.error || 'Erro ao cadastrar estágio');
         }
         lastConnectionSuccess = true;
-        // Salva na réplica local também
-        try { clientStorage.create(data); } catch { /* ignore if already exists */ }
+        try { clientStorage.createEstagio(data); } catch {}
         return json;
       }
     } catch (err: any) {
       if (err.message && (err.message.includes('matrícula') || err.message.includes('obrigatório'))) {
         throw err;
       }
-      console.warn('[API] Erro de rede com backend central, salvando no armazenamento local:', err);
       lastConnectionSuccess = false;
     }
 
-    // Fallback local se o servidor estiver temporariamente fora
-    return clientStorage.create(data);
+    return clientStorage.createEstagio(data);
   },
 
   async updateEstagio(id: string, data: Partial<EstagioFormData>): Promise<EstagioRecord> {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = `${getApiBaseUrl()}/estagios`;
 
     try {
       const res = await fetch(`${baseUrl}/${id}`, {
@@ -156,7 +143,7 @@ export const api = {
           throw new Error(json.error || 'Erro ao atualizar estágio');
         }
         lastConnectionSuccess = true;
-        try { clientStorage.update(id, data); } catch {}
+        try { clientStorage.updateEstagio(id, data); } catch {}
         return json;
       }
     } catch (err: any) {
@@ -166,25 +153,19 @@ export const api = {
       lastConnectionSuccess = false;
     }
 
-    return clientStorage.update(id, data);
+    return clientStorage.updateEstagio(id, data);
   },
 
   async deleteEstagio(id: string): Promise<void> {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = `${getApiBaseUrl()}/estagios`;
 
-    // Remove SEMPRE do cache local primeiro para nunca mais reaparecer na tela
-    try {
-      clientStorage.delete(id);
-    } catch (e) {
-      console.warn('Erro ao remover do cache local:', e);
-    }
+    try { clientStorage.deleteEstagio(id); } catch {}
 
     try {
       const res = await fetch(`${baseUrl}/${id}`, {
         method: 'DELETE',
         headers: { Accept: 'application/json' },
       });
-
       if (res.ok) {
         lastConnectionSuccess = true;
         return;
@@ -194,32 +175,123 @@ export const api = {
     }
   },
 
-  async resetSample(): Promise<EstagioRecord[]> {
-    const baseUrl = getApiBaseUrl();
+  async clearAllEstagios(): Promise<void> {
+    clientStorage.clearAllEstagios();
+    const records = await this.getEstagios();
+    for (const r of records) {
+      await this.deleteEstagio(r.id);
+    }
+  },
+
+  // ================= REUNIÕES MENSAIS & FREQUÊNCIA =================
+
+  async getReunioes(): Promise<ReuniaoMensal[]> {
+    const baseUrl = `${getApiBaseUrl()}/reunioes`;
 
     try {
-      const res = await fetch(`${baseUrl}/reset-sample`, {
-        method: 'POST',
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const res = await fetch(baseUrl, {
         headers: { Accept: 'application/json' },
+        signal: controller.signal,
       });
-      if (res.ok) {
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         lastConnectionSuccess = true;
-        clientStorage.importJson(data.records);
-        return data.records;
+        if (Array.isArray(data)) {
+          clientStorage.importReunioesJson(data);
+          return data;
+        }
       }
     } catch {
       lastConnectionSuccess = false;
     }
 
-    return clientStorage.resetSample();
+    return clientStorage.getAllReunioes();
   },
 
-  async clearAll(): Promise<void> {
-    clientStorage.clearAll();
-    const records = await this.getEstagios();
-    for (const r of records) {
-      await this.deleteEstagio(r.id);
+  async createReuniao(data: {
+    mesAno: string;
+    dataReuniao: string;
+    pauta: string;
+    observacoes?: string;
+  }): Promise<ReuniaoMensal> {
+    const baseUrl = `${getApiBaseUrl()}/reunioes`;
+
+    try {
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        lastConnectionSuccess = true;
+        try { clientStorage.createReuniao(data); } catch {}
+        return json;
+      }
+    } catch {
+      lastConnectionSuccess = false;
+    }
+
+    return clientStorage.createReuniao(data);
+  },
+
+  async updateFrequencia(
+    reuniaoId: string,
+    alunoId: string,
+    status: 'Presença' | 'Falta',
+    justificativa?: string
+  ): Promise<ReuniaoMensal> {
+    const baseUrl = `${getApiBaseUrl()}/reunioes/${reuniaoId}/frequencia`;
+
+    try {
+      const res = await fetch(baseUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ alunoId, status, justificativa }),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const json = await res.json();
+        lastConnectionSuccess = true;
+        try { clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa); } catch {}
+        return json;
+      }
+    } catch {
+      lastConnectionSuccess = false;
+    }
+
+    return clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
+  },
+
+  async deleteReuniao(id: string): Promise<void> {
+    const baseUrl = `${getApiBaseUrl()}/reunioes/${id}`;
+    try { clientStorage.deleteReuniao(id); } catch {}
+
+    try {
+      const res = await fetch(baseUrl, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        lastConnectionSuccess = true;
+      }
+    } catch {
+      lastConnectionSuccess = false;
     }
   },
 
