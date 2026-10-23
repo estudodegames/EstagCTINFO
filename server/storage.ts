@@ -110,7 +110,7 @@ class StorageService {
   private load(): EstagioRecord[] {
     this.ensureDir();
     if (!fs.existsSync(DATA_FILE)) {
-      this.memoryCache = [...INITIAL_RECORDS];
+      this.memoryCache = [];
       this.persist();
       this.isLoaded = true;
       return this.memoryCache;
@@ -122,12 +122,12 @@ class StorageService {
       if (Array.isArray(parsed)) {
         this.memoryCache = parsed;
       } else {
-        this.memoryCache = [...INITIAL_RECORDS];
+        this.memoryCache = [];
         this.persist();
       }
     } catch (err) {
-      console.error('[StorageService] Erro ao ler arquivo de dados, recarregando padrão:', err);
-      this.memoryCache = [...INITIAL_RECORDS];
+      console.error('[StorageService] Erro ao ler arquivo de dados:', err);
+      this.memoryCache = [];
       this.persist();
     }
     this.isLoaded = true;

@@ -1,82 +1,98 @@
 import { EstagioFormData, EstagioRecord } from '../types.ts';
 import { clientStorage } from './clientStorage.ts';
 
-const BASE_URL = '/api/estagios';
+// URL do servidor central na nuvem (Cloud Run)
+const CLOUD_BACKEND_URL = 'https://ais-pre-huldpf6aiilosgwiptzsfk-739851012570.us-east1.run.app';
+const API_URL_KEY = 'estagios_custom_api_url';
 
-// Armazena em cache se o backend Express está ativo ou se estamos em ambiente estático (Netlify/Vercel)
-let backendAvailable: boolean | null = null;
-
-async function checkBackendAvailability(): Promise<boolean> {
-  if (backendAvailable !== null) return backendAvailable;
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-
-    const res = await fetch(BASE_URL, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      backendAvailable = true;
-    } else {
-      backendAvailable = false;
-    }
-  } catch {
-    backendAvailable = false;
+/**
+ * Obtém a URL base da API REST:
+ * - Se estiver rodando no mesmo host (localhost ou run.app): usa caminho relativo '/api/estagios'
+ * - Se estiver rodando no Netlify (estagioeter.netlify.app): conecta à URL do servidor central na nuvem
+ */
+export function getApiBaseUrl(): string {
+  // Permite override manual caso o usuário queira configurar outra URL
+  const customUrl = localStorage.getItem(API_URL_KEY);
+  if (customUrl) {
+    return customUrl.replace(/\/$/, '') + '/api/estagios';
   }
 
-  return backendAvailable;
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // Se estiver no Netlify ou qualquer outro domínio externo, usa o backend em nuvem
+    if (hostname.includes('netlify.app') || hostname.includes('vercel.app') || (!hostname.includes('localhost') && !hostname.includes('run.app'))) {
+      return `${CLOUD_BACKEND_URL}/api/estagios`;
+    }
+  }
+
+  // No preview local / Cloud Run do AI Studio
+  return '/api/estagios';
 }
 
+export function setCustomApiUrl(url: string | null) {
+  if (url && url.trim()) {
+    localStorage.setItem(API_URL_KEY, url.trim());
+  } else {
+    localStorage.removeItem(API_URL_KEY);
+  }
+}
+
+let lastConnectionSuccess = false;
+
 export const api = {
-  async getStorageMode(): Promise<'backend' | 'client'> {
-    const isBackend = await checkBackendAvailability();
-    return isBackend ? 'backend' : 'client';
+  isBackendConnected(): boolean {
+    return lastConnectionSuccess;
   },
 
   async getEstagios(query?: string, status?: string): Promise<EstagioRecord[]> {
-    const isBackend = await checkBackendAvailability();
+    const baseUrl = getApiBaseUrl();
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    if (status && status !== 'Todos') params.append('status', status);
 
-    if (isBackend) {
-      try {
-        const params = new URLSearchParams();
-        if (query) params.append('q', query);
-        if (status && status !== 'Todos') params.append('status', status);
+    const url = `${baseUrl}${params.toString() ? '?' + params.toString() : ''}`;
 
-        const url = `${BASE_URL}?${params.toString()}`;
-        const res = await fetch(url, { headers: { Accept: 'application/json' } });
-        const contentType = res.headers.get('content-type') || '';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        if (res.ok && contentType.includes('application/json')) {
-          return await res.json();
+      const res = await fetch(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        lastConnectionSuccess = true;
+        // Atualiza réplica local com os dados reais do servidor
+        if (Array.isArray(data)) {
+          clientStorage.importJson(data);
+          return data;
         }
-        // Se a resposta não for JSON (ex: página 404 do Netlify), fallback para o armazenamento local
-        backendAvailable = false;
-      } catch (err) {
-        console.warn('[API] Servidor backend indisponível, usando armazenamento local do navegador:', err);
-        backendAvailable = false;
       }
+    } catch (err) {
+      console.warn('[API] Falha ao conectar ao servidor central, lendo cache local:', err);
+      lastConnectionSuccess = false;
     }
 
-    // Modo cliente / Netlify
+    // Se o backend estiver inacessível, usa o armazenamento local
     return clientStorage.getAll(query, status);
   },
 
   async getEstagioById(id: string): Promise<EstagioRecord> {
-    const isBackend = await checkBackendAvailability();
-
-    if (isBackend) {
-      try {
-        const res = await fetch(`${BASE_URL}/${id}`, { headers: { Accept: 'application/json' } });
-        if (res.ok) return await res.json();
-      } catch {
-        backendAvailable = false;
+    const baseUrl = getApiBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/${id}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        lastConnectionSuccess = true;
+        return await res.json();
       }
+    } catch {
+      lastConnectionSuccess = false;
     }
 
     const item = clientStorage.getById(id);
@@ -85,122 +101,126 @@ export const api = {
   },
 
   async createEstagio(data: EstagioFormData): Promise<EstagioRecord> {
-    const isBackend = await checkBackendAvailability();
+    const baseUrl = getApiBaseUrl();
 
-    if (isBackend) {
-      try {
-        const res = await fetch(BASE_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
+    try {
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          if (!res.ok) {
-            throw new Error(json.error || 'Erro ao cadastrar estágio');
-          }
-          return json;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Erro ao cadastrar estágio');
         }
-
-        // Se retornou HTML (ex: 404 do Netlify), fallback
-        backendAvailable = false;
-      } catch (err: any) {
-        // Se o erro for de validação da API (ex: matrícula duplicada), repassa o erro
-        if (err.message && err.message.includes('matrícula')) {
-          throw err;
-        }
-        console.warn('[API] Falha de comunicação com /api/estagios, salvando localmente:', err);
-        backendAvailable = false;
+        lastConnectionSuccess = true;
+        // Salva na réplica local também
+        try { clientStorage.create(data); } catch { /* ignore if already exists */ }
+        return json;
       }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('matrícula') || err.message.includes('obrigatório'))) {
+        throw err;
+      }
+      console.warn('[API] Erro de rede com backend central, salvando no armazenamento local:', err);
+      lastConnectionSuccess = false;
     }
 
-    // Modo cliente / Netlify: salva localmente com todas as validações e persistência
+    // Fallback local se o servidor estiver temporariamente fora
     return clientStorage.create(data);
   },
 
   async updateEstagio(id: string, data: Partial<EstagioFormData>): Promise<EstagioRecord> {
-    const isBackend = await checkBackendAvailability();
+    const baseUrl = getApiBaseUrl();
 
-    if (isBackend) {
-      try {
-        const res = await fetch(`${BASE_URL}/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
+    try {
+      const res = await fetch(`${baseUrl}/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await res.json();
-          if (!res.ok) {
-            throw new Error(json.error || 'Erro ao atualizar estágio');
-          }
-          return json;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error || 'Erro ao atualizar estágio');
         }
-
-        backendAvailable = false;
-      } catch (err: any) {
-        if (err.message && err.message.includes('matrícula')) {
-          throw err;
-        }
-        backendAvailable = false;
+        lastConnectionSuccess = true;
+        try { clientStorage.update(id, data); } catch {}
+        return json;
       }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('matrícula') || err.message.includes('branco'))) {
+        throw err;
+      }
+      lastConnectionSuccess = false;
     }
 
     return clientStorage.update(id, data);
   },
 
   async deleteEstagio(id: string): Promise<void> {
-    const isBackend = await checkBackendAvailability();
+    const baseUrl = getApiBaseUrl();
 
-    if (isBackend) {
-      try {
-        const res = await fetch(`${BASE_URL}/${id}`, {
-          method: 'DELETE',
-          headers: { Accept: 'application/json' },
-        });
-
-        const contentType = res.headers.get('content-type') || '';
-        if (res.ok && contentType.includes('application/json')) {
-          return;
-        }
-
-        backendAvailable = false;
-      } catch {
-        backendAvailable = false;
-      }
+    // Remove SEMPRE do cache local primeiro para nunca mais reaparecer na tela
+    try {
+      clientStorage.delete(id);
+    } catch (e) {
+      console.warn('Erro ao remover do cache local:', e);
     }
 
-    clientStorage.delete(id);
+    try {
+      const res = await fetch(`${baseUrl}/${id}`, {
+        method: 'DELETE',
+        headers: { Accept: 'application/json' },
+      });
+
+      if (res.ok) {
+        lastConnectionSuccess = true;
+        return;
+      }
+    } catch {
+      lastConnectionSuccess = false;
+    }
   },
 
   async resetSample(): Promise<EstagioRecord[]> {
-    const isBackend = await checkBackendAvailability();
+    const baseUrl = getApiBaseUrl();
 
-    if (isBackend) {
-      try {
-        const res = await fetch(`${BASE_URL}/reset-sample`, {
-          method: 'POST',
-          headers: { Accept: 'application/json' },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return data.records;
-        }
-      } catch {
-        backendAvailable = false;
+    try {
+      const res = await fetch(`${baseUrl}/reset-sample`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        lastConnectionSuccess = true;
+        clientStorage.importJson(data.records);
+        return data.records;
       }
+    } catch {
+      lastConnectionSuccess = false;
     }
 
     return clientStorage.resetSample();
+  },
+
+  async clearAll(): Promise<void> {
+    clientStorage.clearAll();
+    const records = await this.getEstagios();
+    for (const r of records) {
+      await this.deleteEstagio(r.id);
+    }
   },
 
   exportJson(): string {

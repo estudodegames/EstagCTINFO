@@ -25,6 +25,7 @@ import { Navbar } from './components/Navbar.tsx';
 import { EstagioFormModal } from './components/EstagioFormModal.tsx';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal.tsx';
 import { EstagioDetailsModal } from './components/EstagioDetailsModal.tsx';
+import { ConnectionSettingsModal } from './components/ConnectionSettingsModal.tsx';
 import { Toast, ToastMessage } from './components/Toast.tsx';
 
 export default function App() {
@@ -33,7 +34,6 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
-  const [storageMode, setStorageMode] = useState<'backend' | 'client'>('client');
 
   // Filtros de busca e status
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,13 +49,12 @@ export default function App() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<EstagioRecord | null>(null);
 
-  // Carrega listagem inicial
-  const loadEstagios = async () => {
-    try {
-      setIsLoading(true);
-      const mode = await api.getStorageMode();
-      setStorageMode(mode);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Carrega listagem inicial
+  const loadEstagios = async (silenceLoading = false) => {
+    try {
+      if (!silenceLoading) setIsLoading(true);
       const data = await api.getEstagios();
       setEstagios(data);
     } catch (err: any) {
@@ -111,7 +110,7 @@ export default function App() {
     try {
       setIsDeleting(true);
       await api.deleteEstagio(recordToDelete.id);
-      // Atualização instantânea do estado sem reload
+      // Atualização instantânea do estado: remove do array na tela
       setEstagios((prev) => prev.filter((item) => item.id !== recordToDelete.id));
       showToast('success', `Estágio do aluno "${recordToDelete.nome}" excluído com sucesso.`);
       setIsDeleteModalOpen(false);
@@ -123,16 +122,32 @@ export default function App() {
     }
   };
 
-  // Restaurar dados de demonstração
-  const handleResetSampleData = async () => {
-    if (window.confirm('Deseja restaurar os cadastros iniciais de demonstração do curso de Jogos Digitais?')) {
+  // Carregar exemplos de demonstração (apenas se o usuário solicitar expressamente)
+  const handleLoadSampleData = async () => {
+    if (window.confirm('Deseja carregar dados de exemplo do curso de Jogos Digitais?')) {
       try {
         setIsLoading(true);
         const data = await api.resetSample();
         setEstagios(data);
-        showToast('info', 'Registros de demonstração restaurados com sucesso.');
+        showToast('info', 'Registros de exemplo carregados.');
       } catch (err: any) {
-        showToast('error', err.message || 'Erro ao restaurar registros.');
+        showToast('error', err.message || 'Erro ao carregar exemplos.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  // Limpar todos os registros
+  const handleClearAll = async () => {
+    if (window.confirm('Tem certeza que deseja apagar TODOS os cadastros existentes? Esta ação é definitiva.')) {
+      try {
+        setIsLoading(true);
+        await api.clearAll();
+        setEstagios([]);
+        showToast('info', 'Todos os cadastros foram removidos.');
+      } catch (err: any) {
+        showToast('error', 'Erro ao limpar cadastros.');
       } finally {
         setIsLoading(false);
       }
@@ -163,7 +178,7 @@ export default function App() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
@@ -175,7 +190,7 @@ export default function App() {
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // Reset input
+    e.target.value = '';
   };
 
   // Exportar para CSV
@@ -209,7 +224,7 @@ export default function App() {
     showToast('success', 'Relatório CSV exportado com sucesso!');
   };
 
-  // Filtro reativo em memória para digitação ultrarrápida
+  // Filtro reativo em memória
   const filteredEstagios = useMemo(() => {
     return estagios.filter((record) => {
       const q = searchTerm.toLowerCase().trim();
@@ -236,13 +251,13 @@ export default function App() {
           setEditingRecord(null);
           setIsFormModalOpen(true);
         }}
-        onRefresh={loadEstagios}
+        onRefresh={() => loadEstagios(false)}
         onExportCSV={handleExportCSV}
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         totalRecords={estagios.length}
         isLoading={isLoading}
-        storageMode={storageMode}
       />
 
       {/* Conteúdo Principal Focado Totalmente na Tabela e Formulário */}
@@ -256,15 +271,15 @@ export default function App() {
                 Matriz Curricular Técnica
               </span>
               <span className="text-xs text-slate-400 font-mono">
-                {estagios.length} alunos cadastrados
+                {estagios.length} {estagios.length === 1 ? 'aluno cadastrado' : 'alunos cadastrados'}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Cadastro e Acompanhamento de Estágios
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-              Gerenciamento obrigatório de estágio curricular para os alunos de Programação de Jogos Digitais. 
-              Cadastre a matrícula, nome do estudante e local de estágio (estúdio/empresa parceira).
+              Gerenciamento oficial de estágios para alunos do curso de Programação de Jogos Digitais. 
+              Cadastre a matrícula, nome do estudante e local de estágio.
             </p>
           </div>
 
@@ -384,7 +399,7 @@ export default function App() {
                         <p className="text-xs text-slate-400">
                           {searchTerm || statusFilter !== 'Todos'
                             ? 'Nenhum resultado corresponde aos filtros selecionados. Tente ajustar o termo de busca.'
-                            : 'Ainda não existem alunos cadastrados para estágio neste período.'}
+                            : 'Nenhum aluno cadastrado no momento. Cadastre seu primeiro registro abaixo.'}
                         </p>
                         <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
                           <button
@@ -397,15 +412,13 @@ export default function App() {
                             <Plus className="w-3.5 h-3.5" />
                             Cadastrar Primeiro Aluno
                           </button>
-                          {estagios.length === 0 && (
-                            <button
-                              onClick={handleResetSampleData}
-                              className="px-3.5 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors inline-flex items-center gap-1.5"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
-                              Carregar Exemplos de Jogos
-                            </button>
-                          )}
+                          <button
+                            onClick={handleLoadSampleData}
+                            className="px-3.5 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-indigo-400" />
+                            Carregar Exemplos
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -522,18 +535,24 @@ export default function App() {
               <span className="font-semibold text-white">{estagios.length}</span> alunos cadastrados
             </div>
             <div className="flex items-center gap-3">
+              {estagios.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  className="text-rose-400 hover:text-rose-300 transition-colors inline-flex items-center gap-1"
+                  title="Apaga todos os cadastros"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Limpar todos
+                </button>
+              )}
+              {estagios.length > 0 && <span>•</span>}
               <button
-                onClick={handleResetSampleData}
+                onClick={() => setIsSettingsOpen(true)}
                 className="hover:text-indigo-400 transition-colors inline-flex items-center gap-1"
-                title="Restaura os cadastros de exemplo do curso"
+                title="Configurações de sincronização do banco"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Restaurar exemplos
+                <span>Banco Sincronizado</span>
               </button>
-              <span>•</span>
-              <span className="text-slate-400">
-                {storageMode === 'backend' ? 'Persistência no Servidor Node.js' : 'Persistência Web Local (Netlify)'}
-              </span>
             </div>
           </div>
         </div>
@@ -575,6 +594,13 @@ export default function App() {
           setEditingRecord(rec);
           setIsFormModalOpen(true);
         }}
+      />
+
+      {/* Modal de Configurações de Conexão */}
+      <ConnectionSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSaved={() => loadEstagios(false)}
       />
 
       {/* Notificação Toast */}

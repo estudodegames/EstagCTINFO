@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Gamepad2, Plus, Download, RefreshCw, Upload, Database, CheckCircle2 } from 'lucide-react';
+import { Gamepad2, Plus, Download, RefreshCw, Upload, Database, Settings } from 'lucide-react';
 
 interface NavbarProps {
   onOpenCreateModal: () => void;
@@ -7,9 +7,9 @@ interface NavbarProps {
   onExportCSV: () => void;
   onExportJSON: () => void;
   onImportJSON: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onOpenSettings: () => void;
   totalRecords: number;
   isLoading: boolean;
-  storageMode: 'backend' | 'client';
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -18,9 +18,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportCSV,
   onExportJSON,
   onImportJSON,
+  onOpenSettings,
   totalRecords,
   isLoading,
-  storageMode,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -49,17 +49,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span className="hidden sm:inline">Curso Técnico em Programação de Jogos</span>
                 <span className="hidden sm:inline">•</span>
-                <span
-                  title={
-                    storageMode === 'backend'
-                      ? 'Persistência via Servidor Node.js'
-                      : 'Persistência no Navegador (Pronto para Netlify/Web)'
-                  }
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400"
+                <button
+                  onClick={onOpenSettings}
+                  title="Clique para ver detalhes da sincronização em nuvem"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {storageMode === 'backend' ? 'Servidor Ativo' : 'Armazenamento Web Ativo'}
-                </span>
+                  Sincronização em Nuvem Ativa
+                </button>
               </div>
             </div>
           </div>
@@ -75,14 +72,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="hidden"
             />
 
+            {/* Botão de Atualizar */}
             <button
               onClick={onRefresh}
-              title="Sincronizar dados"
+              title="Sincronizar com o banco de dados agora"
               disabled={isLoading}
               className="p-2 sm:px-2.5 sm:py-2 text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 hover:text-white border border-slate-700/80 rounded-lg transition-all flex items-center space-x-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-indigo-400' : ''}`} />
               <span className="hidden md:inline">Atualizar</span>
+            </button>
+
+            {/* Configurações de Conexão */}
+            <button
+              onClick={onOpenSettings}
+              title="Configurações de sincronização do banco"
+              className="p-2 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            >
+              <Settings className="w-3.5 h-3.5" />
             </button>
 
             {/* Backup / Exportar JSON */}
@@ -92,7 +99,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="p-2 sm:px-2.5 sm:py-2 text-xs font-medium text-slate-300 bg-slate-800/80 hover:bg-slate-700 hover:text-white border border-slate-700/80 rounded-lg transition-all flex items-center space-x-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
             >
               <Database className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="hidden md:inline">Backup JSON</span>
+              <span className="hidden md:inline">Backup</span>
             </button>
 
             {/* Importar JSON */}

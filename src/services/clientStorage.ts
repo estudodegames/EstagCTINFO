@@ -1,6 +1,6 @@
 import { EstagioFormData, EstagioRecord } from '../types.ts';
 
-const STORAGE_KEY = 'estagios_jogos_digitais_db_v1';
+const STORAGE_KEY = 'estagios_jogos_digitais_db_v2';
 
 export const INITIAL_RECORDS: EstagioRecord[] = [
   {
@@ -30,48 +30,6 @@ export const INITIAL_RECORDS: EstagioRecord[] = [
     observacoes: 'Implementação de Behavior Trees e navegação de NPCs.',
     criadoEm: '2024-02-25T14:30:00.000Z',
     atualizadoEm: '2024-02-25T14:30:00.000Z',
-  },
-  {
-    id: 'est-3',
-    matricula: '2024-JOG-0189',
-    nome: 'Rodrigo Medeiros Fontes',
-    localEstagio: 'MadVoxel Entretenimento Digital',
-    area: 'Programação de Shaders & Efeitos Visuais',
-    status: 'Ativo',
-    dataInicio: '2024-04-10',
-    cargaHoraria: '20h',
-    supervisor: 'Alexandre Pires (Tech Artist)',
-    observacoes: 'HLSL e otimização de renderização para dispositivos mobile.',
-    criadoEm: '2024-04-05T09:15:00.000Z',
-    atualizadoEm: '2024-04-05T09:15:00.000Z',
-  },
-  {
-    id: 'est-4',
-    matricula: '2023-JOG-0094',
-    nome: 'Beatriz Vasconcelos Rios',
-    localEstagio: 'Hoplon Infotainment Labs',
-    area: 'Backend Multiplayer & Redes para Jogos',
-    status: 'Concluído',
-    dataInicio: '2023-08-01',
-    cargaHoraria: '30h',
-    supervisor: 'Marcelo Zanin (Engenheiro de Redes)',
-    observacoes: 'Carga horária total de 400 horas concluída com relatório aprovado.',
-    criadoEm: '2023-07-28T11:00:00.000Z',
-    atualizadoEm: '2024-01-20T16:00:00.000Z',
-  },
-  {
-    id: 'est-5',
-    matricula: '2024-JOG-0205',
-    nome: 'Felipe Santana Moreira',
-    localEstagio: 'Aquiris Studios / Epic Games Brasil',
-    area: 'Quality Assurance (QA) & Testes Automatizados',
-    status: 'Pendente',
-    dataInicio: '2024-11-01',
-    cargaHoraria: '20h',
-    supervisor: 'Juliana Prado (Coordenadora de QA)',
-    observacoes: 'Aguardando validação final do termo de compromisso pela coordenação.',
-    criadoEm: '2024-10-15T08:20:00.000Z',
-    atualizadoEm: '2024-10-15T08:20:00.000Z',
   }
 ];
 
@@ -79,19 +37,21 @@ class ClientStorageEngine {
   private loadRecords(): EstagioRecord[] {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) {
-        this.saveRecords(INITIAL_RECORDS);
-        return [...INITIAL_RECORDS];
+      if (data !== null) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          // Retorna o array salvo exatamente como está, mesmo que esteja vazio ([])!
+          // Isso garante que se o usuário deletar registros, eles NUNCA voltam sozinhos.
+          return parsed;
+        }
       }
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-      this.saveRecords(INITIAL_RECORDS);
-      return [...INITIAL_RECORDS];
+      // Se ainda não houver nenhum dado inicializado, inicia com lista VAZIA ([]).
+      // "Só pode aparecer o que o usuário digitar".
+      this.saveRecords([]);
+      return [];
     } catch (e) {
-      console.warn('[ClientStorage] Falha ao ler localStorage, utilizando dados iniciais:', e);
-      return [...INITIAL_RECORDS];
+      console.warn('[ClientStorage] Falha ao ler localStorage:', e);
+      return [];
     }
   }
 
@@ -194,9 +154,7 @@ class ClientStorageEngine {
   public delete(id: string): void {
     const list = this.loadRecords();
     const filtered = list.filter(r => r.id !== id);
-    if (filtered.length === list.length) {
-      throw new Error('Registro não encontrado para exclusão.');
-    }
+    // Salva exatamente a lista filtrada (mesmo que fique vazia [])
     this.saveRecords(filtered);
   }
 
@@ -205,17 +163,17 @@ class ClientStorageEngine {
     return [...INITIAL_RECORDS];
   }
 
+  public clearAll(): EstagioRecord[] {
+    this.saveRecords([]);
+    return [];
+  }
+
   public importJson(imported: EstagioRecord[]): EstagioRecord[] {
     if (!Array.isArray(imported)) {
       throw new Error('Formato de arquivo JSON inválido.');
     }
 
-    // Validar itens essenciais
     const valid = imported.filter(item => item.matricula && item.nome && item.localEstagio);
-    if (valid.length === 0) {
-      throw new Error('Nenhum cadastro válido encontrado no arquivo.');
-    }
-
     this.saveRecords(valid);
     return valid;
   }
