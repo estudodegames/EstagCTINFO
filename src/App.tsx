@@ -16,7 +16,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Clock,
-  RotateCcw
+  RotateCcw,
+  Database
 } from 'lucide-react';
 import { EstagioRecord, EstagioFormData } from './types.ts';
 import { api } from './services/api.ts';
@@ -32,6 +33,7 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+  const [storageMode, setStorageMode] = useState<'backend' | 'client'>('client');
 
   // Filtros de busca e status
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +53,9 @@ export default function App() {
   const loadEstagios = async () => {
     try {
       setIsLoading(true);
+      const mode = await api.getStorageMode();
+      setStorageMode(mode);
+
       const data = await api.getEstagios();
       setEstagios(data);
     } catch (err: any) {
@@ -94,7 +99,7 @@ export default function App() {
       setIsFormModalOpen(false);
       setEditingRecord(null);
     } catch (err: any) {
-      throw err; // Repassa para o modal exibir na interface
+      throw err; // Repassa para o modal exibir o alerta de validação
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +125,7 @@ export default function App() {
 
   // Restaurar dados de demonstração
   const handleResetSampleData = async () => {
-    if (window.confirm('Deseja recarregar os exemplos de estágios do curso de Jogos Digitais?')) {
+    if (window.confirm('Deseja restaurar os cadastros iniciais de demonstração do curso de Jogos Digitais?')) {
       try {
         setIsLoading(true);
         const data = await api.resetSample();
@@ -132,6 +137,45 @@ export default function App() {
         setIsLoading(false);
       }
     }
+  };
+
+  // Exportar Backup JSON
+  const handleExportJSON = () => {
+    try {
+      const jsonStr = api.exportJson();
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `backup_estagios_jogos_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('success', 'Backup JSON exportado com sucesso!');
+    } catch (err: any) {
+      showToast('error', 'Falha ao exportar backup JSON.');
+    }
+  };
+
+  // Importar Backup JSON
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        const imported = api.importJson(parsed);
+        setEstagios(imported);
+        showToast('success', `${imported.length} cadastros importados com sucesso!`);
+      } catch (err: any) {
+        showToast('error', err.message || 'Arquivo JSON inválido.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset input
   };
 
   // Exportar para CSV
@@ -194,8 +238,11 @@ export default function App() {
         }}
         onRefresh={loadEstagios}
         onExportCSV={handleExportCSV}
+        onExportJSON={handleExportJSON}
+        onImportJSON={handleImportJSON}
         totalRecords={estagios.length}
         isLoading={isLoading}
+        storageMode={storageMode}
       />
 
       {/* Conteúdo Principal Focado Totalmente na Tabela e Formulário */}
@@ -484,7 +531,9 @@ export default function App() {
                 Restaurar exemplos
               </button>
               <span>•</span>
-              <span className="text-slate-500">Persistência permanente no servidor</span>
+              <span className="text-slate-400">
+                {storageMode === 'backend' ? 'Persistência no Servidor Node.js' : 'Persistência Web Local (Netlify)'}
+              </span>
             </div>
           </div>
         </div>
