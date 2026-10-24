@@ -37,12 +37,13 @@ export const api = {
 
   // ================= ESTÁGIOS =================
 
-  async getEstagios(query?: string, status?: string, turma?: string): Promise<EstagioRecord[]> {
+  async getEstagios(query?: string, status?: string, turma?: string, curso?: string): Promise<EstagioRecord[]> {
     const baseUrl = `${getApiBaseUrl()}/estagios`;
     const params = new URLSearchParams();
     if (query) params.append('q', query);
     if (status && status !== 'Todos') params.append('status', status);
     if (turma && turma !== 'Todas') params.append('turma', turma);
+    if (curso && curso !== 'Todos') params.append('curso', curso);
 
     const url = `${baseUrl}${params.toString() ? '?' + params.toString() : ''}`;
 
@@ -70,7 +71,7 @@ export const api = {
       lastConnectionSuccess = false;
     }
 
-    return clientStorage.getAllEstagios(query, status, turma);
+    return clientStorage.getAllEstagios(query, status, turma, curso);
   },
 
   async getEstagioById(id: string): Promise<EstagioRecord> {

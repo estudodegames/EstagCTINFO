@@ -1,47 +1,152 @@
 import React, { useState } from 'react';
-import { X, Printer, FileSpreadsheet, FileText, Calendar, Filter, Users, Building2, CheckCircle2 } from 'lucide-react';
-import { EstagioRecord } from '../types.ts';
+import {
+  X,
+  Printer,
+  FileDown,
+  FileSpreadsheet,
+  Calendar,
+  Users,
+  CheckCircle2,
+  XCircle,
+  Award,
+  Check,
+  AlertCircle,
+  Loader2,
+} from 'lucide-react';
+import { EstagioRecord, ReuniaoMensal, getNomeCompletoCurso, TipoCurso } from '../types.ts';
+import { generatePdfFromElement, printElementDirectly } from '../utils/printAndPdf.ts';
 
 interface RelatoriosModalProps {
   isOpen: boolean;
   onClose: () => void;
   alunos: EstagioRecord[];
+  reunioes: ReuniaoMensal[];
 }
 
 export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
   isOpen,
   onClose,
   alunos,
+  reunioes,
 }) => {
-  const [tab, setTab] = useState<'geral' | 'ativosMes'>('geral');
+  const [tab, setTab] = useState<'frequencia' | 'geral' | 'ativosMes'>('frequencia');
   const [mesAnoFiltro, setMesAnoFiltro] = useState(new Date().toISOString().substring(0, 7)); // Ex: "2026-10"
+  const [cursoFiltro, setCursoFiltro] = useState<string>('Todos');
+  const [dataEmissao, setDataEmissao] = useState<string>(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const [anoStr, mesStr] = mesAnoFiltro.split('-');
+  const dataRef = new Date(parseInt(anoStr, 10), parseInt(mesStr, 10) - 1, 1);
+  const nomeMesAno = dataRef.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Formata data de emissão escolhida
+  const formatarDataExtenso = (isoDate: string) => {
+    if (!isoDate) return '';
+    const [ano, mes, dia] = isoDate.split('-');
+    const d = new Date(parseInt(ano, 10), parseInt(mes, 10) - 1, parseInt(dia, 10));
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
   };
 
-  // Filtragem dos ativos no mês
-  const estagiariosAtivos = alunos.filter((a) => {
-    if (a.status !== 'Ativo') return false;
-    // Se tiver data de início, verificar se iniciou até o mês selecionado
-    if (a.dataInicio) {
-      const inicioMes = a.dataInicio.substring(0, 7);
-      return inicioMes <= mesAnoFiltro;
-    }
-    return true;
+  const dataEmissaoFormatada = formatarDataExtenso(dataEmissao);
+
+  // Reunião correspondente ao mês selecionado
+  const reuniaoDoMes = reunioes.find((r) => r.mesAno === mesAnoFiltro) || null;
+  const presencasMap = reuniaoDoMes?.presencas || {};
+
+  // Filtra alunos pelo curso selecionado (se aplicável)
+  const alunosFiltrados = alunos.filter((a) => {
+    if (cursoFiltro === 'Todos') return true;
+    return a.curso === cursoFiltro;
   });
 
-  const [ano, mes] = mesAnoFiltro.split('-');
-  const dataRef = new Date(parseInt(ano, 10), parseInt(mes, 10) - 1, 1);
-  const nomeMesAno = dataRef.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const dataHoje = new Date().toLocaleDateString('pt-BR');
+  // Estatísticas de Frequência do Mês
+  let countPresentes = 0;
+  let countFaltas = 0;
+  let countNaoRegistrado = 0;
+
+  alunosFiltrados.forEach((a) => {
+    const status = presencasMap[a.id]?.status;
+    if (status === 'Presença') countPresentes++;
+    else if (status === 'Falta') countFaltas++;
+    else countNaoRegistrado++;
+  });
+
+  const totalAvaliados = countPresentes + countFaltas;
+  const taxaPresenca = totalAvaliados > 0 ? Math.round((countPresentes / totalAvaliados) * 100) : 0;
+
+  // Filtragem dos ativos no mês
+  const estagiariosAtivos = alunosFiltrados.filter((a) => a.status === 'Ativo');
+
+  // Título e nome de arquivo do relatório
+  const getReportTitle = () => {
+    if (tab === 'frequencia') {
+      return `Relatório de Frequência Mensal - ${nomeMesAno}`;
+    }
+    if (tab === 'geral') {
+      return 'Relatório Geral de Estagiários Cadastrados';
+    }
+    return `Relatório de Estagiários Ativos - ${nomeMesAno}`;
+  };
+
+  const getReportFilename = () => {
+    const sanitizedCurso = cursoFiltro.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (tab === 'frequencia') {
+      return `relatorio_frequencia_${mesAnoFiltro}_${sanitizedCurso}.pdf`;
+    }
+    if (tab === 'geral') {
+      return `relatorio_geral_estagiarios_${sanitizedCurso}.pdf`;
+    }
+    return `relatorio_ativos_${mesAnoFiltro}_${sanitizedCurso}.pdf`;
+  };
+
+  // 1. Gerar e baixar PDF do relatório
+  const handleGerarPDF = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      setFeedbackMsg(null);
+      const filename = getReportFilename();
+      await generatePdfFromElement('documento-relatorio-oficial', {
+        filename,
+        orientation: tab === 'frequencia' ? 'landscape' : 'portrait',
+      });
+      setFeedbackMsg({
+        type: 'success',
+        text: `Relatório em PDF gerado com sucesso! Arquivo "${filename}" baixado.`,
+      });
+    } catch (err: any) {
+      console.error('Erro ao gerar PDF do relatório:', err);
+      setFeedbackMsg({
+        type: 'error',
+        text: 'Não foi possível gerar o arquivo PDF. Você pode clicar no botão "Enviar para Impressora".',
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  // 2. Enviar diretamente para a impressora
+  const handleImprimir = () => {
+    printElementDirectly('documento-relatorio-oficial', getReportTitle());
+  };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
-      <div 
-        className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150 print:bg-white print:text-black print:border-none print:shadow-none print:w-full print:max-w-none"
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
+      <div
+        className="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-5xl shadow-2xl text-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150 print:bg-white print:text-black print:border-none print:shadow-none print:w-full print:max-w-none"
         role="dialog"
         aria-modal="true"
       >
@@ -52,8 +157,8 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Relatórios Oficiais de Estágio</h3>
-              <p className="text-xs text-slate-400">Curso Técnico de Programação de Jogos Digitais</p>
+              <h3 className="text-base font-bold text-white">Relatórios de Estágio Supervisionado</h3>
+              <p className="text-xs text-slate-400">Cursos Técnicos de Jogos Digitais, Informática e Redes</p>
             </div>
           </div>
           <button
@@ -64,73 +169,196 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           </button>
         </div>
 
-        {/* Barra de Abas dos Relatórios (oculta na impressão) */}
+        {/* Barra de Abas e Filtros (oculta na impressão) */}
         <div className="px-6 py-3 border-b border-slate-800 bg-slate-950/50 flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 overflow-x-auto">
             <button
-              onClick={() => setTab('geral')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+              onClick={() => {
+                setTab('frequencia');
+                setFeedbackMsg(null);
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+                tab === 'frequencia'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+              }`}
+            >
+              1. Frequência Mensal (Envio à Gerência)
+            </button>
+
+            <button
+              onClick={() => {
+                setTab('geral');
+                setFeedbackMsg(null);
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
                 tab === 'geral'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
               }`}
             >
-              1. Relatório Geral de Todos os Estagiários
+              2. Todos os Estagiários Cadastrados
             </button>
 
             <button
-              onClick={() => setTab('ativosMes')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all ${
+              onClick={() => {
+                setTab('ativosMes');
+                setFeedbackMsg(null);
+              }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
                 tab === 'ativosMes'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
               }`}
             >
-              2. Relatório de Estagiários Ativos no Mês
+              3. Estagiários Ativos no Mês
             </button>
           </div>
 
-          {tab === 'ativosMes' && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Mês de Referência:</span>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Filtro de Curso */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-400">Curso:</span>
+              <select
+                value={cursoFiltro}
+                onChange={(e) => setCursoFiltro(e.target.value)}
+                className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="Todos">Todos os Cursos</option>
+                <option value="Jogos">Jogos Digitais</option>
+                <option value="Informática">Informática</option>
+                <option value="Redes">Redes</option>
+              </select>
+            </div>
+
+            {/* Filtro de Mês */}
+            {(tab === 'frequencia' || tab === 'ativosMes') && (
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400">Mês da Reunião:</span>
+                <input
+                  type="month"
+                  value={mesAnoFiltro}
+                  onChange={(e) => setMesAnoFiltro(e.target.value)}
+                  className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            )}
+
+            {/* Data de Emissão do Documento */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-slate-400">Data de Emissão:</span>
               <input
-                type="month"
-                value={mesAnoFiltro}
-                onChange={(e) => setMesAnoFiltro(e.target.value)}
+                type="date"
+                value={dataEmissao}
+                onChange={(e) => setDataEmissao(e.target.value)}
                 className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Área do Documento para Visualização e Impressão */}
-        <div className="p-6 sm:p-8 space-y-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-6 print:text-black">
-          {/* Cabeçalho Oficial Timbrado para Impressão */}
+        {/* Mensagem de Feedback de Operação */}
+        {feedbackMsg && (
+          <div
+            className={`px-6 py-2.5 text-xs flex items-center justify-between border-b ${
+              feedbackMsg.type === 'success'
+                ? 'bg-emerald-950/60 border-emerald-800 text-emerald-300'
+                : 'bg-rose-950/60 border-rose-800 text-rose-300'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              {feedbackMsg.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              )}
+              {feedbackMsg.text}
+            </span>
+            <button
+              onClick={() => setFeedbackMsg(null)}
+              className="hover:underline text-[11px] font-semibold"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
+        {/* Área do Documento para Visualização, PDF e Impressão (Identificada com ID) */}
+        <div
+          id="documento-relatorio-oficial"
+          className="p-6 sm:p-8 space-y-6 max-h-[66vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-6 print:text-black bg-slate-900 print:bg-white"
+        >
+          {/* Cabeçalho Oficial Timbrado */}
           <div className="text-center pb-4 border-b-2 border-slate-700 print:border-black space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-indigo-400 print:text-gray-700">
-              SECRETARIA ACADÊMICA & COORDENAÇÃO DE ESTÁGIOS
+              ORIENTAÇÃO DE ESTÁGIO SUPERVISIONADO • CURSOS TÉCNICOS
             </p>
-            <h1 className="text-lg sm:text-xl font-bold uppercase text-white print:text-black">
-              CURSO TÉCNICO DE PROGRAMAÇÃO DE JOGOS DIGITAIS
+            <h1 className="text-base sm:text-lg font-bold uppercase text-white print:text-black">
+              {cursoFiltro === 'Todos'
+                ? 'CURSOS TÉCNICOS: JOGOS DIGITAIS • INFORMÁTICA • REDES'
+                : getNomeCompletoCurso(cursoFiltro).toUpperCase()}
             </h1>
-            <h2 className="text-sm font-semibold text-slate-300 print:text-gray-800">
-              {tab === 'geral'
+            <h2 className="text-xs sm:text-sm font-semibold text-slate-300 print:text-gray-800">
+              {tab === 'frequencia'
+                ? `RELATÓRIO MENSAL DE FREQUÊNCIA À REUNIÃO DE ACOMPANHAMENTO — MÊS DE ${nomeMesAno.toUpperCase()}`
+                : tab === 'geral'
                 ? 'RELATÓRIO GERAL DE ESTAGIÁRIOS CADASTRADOS'
                 : `RELATÓRIO DE ESTAGIÁRIOS ATIVOS — MÊS DE ${nomeMesAno.toUpperCase()}`}
             </h2>
+            {tab === 'frequencia' && (
+              <p className="text-[11px] text-slate-400 print:text-gray-600">
+                Documento destinado ao encaminhamento e prestação de contas à Gerência Escolar
+              </p>
+            )}
           </div>
 
-          {/* TAB 1: RELATÓRIO GERAL */}
-          {tab === 'geral' && (
+          {/* ============================================================== */}
+          {/* TAB 1: RELATÓRIO DE FREQUÊNCIA MENSAL (ENVIO À GERÊNCIA)        */}
+          {/* ============================================================== */}
+          {tab === 'frequencia' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 print:text-gray-600">
-                <span>Total de Alunos Registrados: <strong>{alunos.length}</strong></span>
-                <span>Data de Emissão: {dataHoje}</span>
+              {/* Resumo Gerencial / Indicadores */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 print:bg-gray-100 print:border-gray-300 text-xs">
+                <div>
+                  <span className="text-slate-400 print:text-gray-600 block">Total Estagiários:</span>
+                  <strong className="text-sm font-bold text-white print:text-black">{alunosFiltrados.length}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 print:text-gray-600 block">Presenças:</span>
+                  <strong className="text-sm font-bold text-emerald-400 print:text-black">{countPresentes}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 print:text-gray-600 block">Faltas:</span>
+                  <strong className="text-sm font-bold text-rose-400 print:text-black">{countFaltas}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-400 print:text-gray-600 block">Assiduidade:</span>
+                  <strong className="text-sm font-bold text-indigo-300 print:text-black">{taxaPresenca}%</strong>
+                </div>
               </div>
 
-              {alunos.length === 0 ? (
+              {/* Informações da Reunião de Referência */}
+              <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 print:text-gray-600 px-1 gap-2">
+                <div>
+                  <span>Data da Reunião Mensal: </span>
+                  <strong className="text-white print:text-black">
+                    {reuniaoDoMes
+                      ? new Date(reuniaoDoMes.dataReuniao + 'T00:00:00').toLocaleDateString('pt-BR')
+                      : 'Não cadastrada para este mês'}
+                  </strong>
+                  {reuniaoDoMes?.pauta && (
+                    <span className="ml-2 italic text-slate-400 print:text-gray-600">
+                      ("{reuniaoDoMes.pauta}")
+                    </span>
+                  )}
+                </div>
+                <span>Data de Emissão: {dataEmissaoFormatada}</span>
+              </div>
+
+              {/* Tabela de Frequência de Todos os Estagiários */}
+              {alunosFiltrados.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  Nenhum registro de aluno cadastrado no momento.
+                  Nenhum estagiário cadastrado para o filtro selecionado.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -139,22 +367,106 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                       <tr className="border-b-2 border-slate-700 bg-slate-800/60 print:bg-gray-100 print:border-black font-semibold text-slate-300 print:text-black">
                         <th className="py-2.5 px-3">Matrícula</th>
                         <th className="py-2.5 px-3">Nome do Aluno</th>
+                        <th className="py-2.5 px-3">Curso</th>
+                        <th className="py-2.5 px-3">Turma / Ano</th>
+                        <th className="py-2.5 px-3">Local de Estágio</th>
+                        <th className="py-2.5 px-3 text-center">Frequência no Mês</th>
+                        <th className="py-2.5 px-3">Observação / Justificativa</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 print:divide-gray-300">
+                      {alunosFiltrados.map((a) => {
+                        const freq = presencasMap[a.id];
+                        const isPresente = freq?.status === 'Presença';
+                        const isFalta = freq?.status === 'Falta';
+
+                        return (
+                          <tr key={a.id} className="hover:bg-slate-800/30">
+                            <td className="py-2.5 px-3 font-mono text-indigo-300 print:text-black font-medium whitespace-nowrap">
+                              {a.matricula}
+                            </td>
+                            <td className="py-2.5 px-3 font-medium text-white print:text-black">
+                              {a.nome}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-300 print:text-black whitespace-nowrap">
+                              {a.curso || 'Jogos'}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-300 print:text-black whitespace-nowrap">
+                              {a.turma || '-'} {a.ano ? `(${a.ano})` : ''}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-200 print:text-black">
+                              {a.localEstagio}
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              {isPresente && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 print:bg-transparent print:text-black print:border print:border-gray-500">
+                                  PRESENÇA
+                                </span>
+                              )}
+                              {isFalta && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-400 print:bg-transparent print:text-black print:border print:border-gray-500">
+                                  FALTA
+                                </span>
+                              )}
+                              {!isPresente && !isFalta && (
+                                <span className="text-slate-500 print:text-gray-500 text-[11px]">
+                                  Pendente
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-slate-400 print:text-gray-700 italic">
+                              {freq?.justificativa || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* TAB 2: RELATÓRIO GERAL DE TODOS OS ESTAGIÁRIOS                 */}
+          {/* ============================================================== */}
+          {tab === 'geral' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-xs text-slate-400 print:text-gray-600">
+                <span>Total de Alunos: <strong>{alunosFiltrados.length}</strong></span>
+                <span>Data de Emissão: {dataEmissaoFormatada}</span>
+              </div>
+
+              {alunosFiltrados.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  Nenhum estagiário cadastrado.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b-2 border-slate-700 bg-slate-800/60 print:bg-gray-100 print:border-black font-semibold text-slate-300 print:text-black">
+                        <th className="py-2.5 px-3">Matrícula</th>
+                        <th className="py-2.5 px-3">Nome do Aluno</th>
+                        <th className="py-2.5 px-3">Curso</th>
                         <th className="py-2.5 px-3">Turma</th>
                         <th className="py-2.5 px-3">Ano</th>
                         <th className="py-2.5 px-3">Sexo</th>
                         <th className="py-2.5 px-3">Local de Estágio</th>
-                        <th className="py-2.5 px-3">Área de Atuação</th>
                         <th className="py-2.5 px-3">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 print:divide-gray-300">
-                      {alunos.map((a) => (
+                      {alunosFiltrados.map((a) => (
                         <tr key={a.id} className="hover:bg-slate-800/30">
                           <td className="py-2.5 px-3 font-mono text-indigo-300 print:text-black font-medium">
                             {a.matricula}
                           </td>
                           <td className="py-2.5 px-3 font-medium text-white print:text-black">
                             {a.nome}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 print:text-black">
+                            {a.curso || 'Jogos'}
                           </td>
                           <td className="py-2.5 px-3 text-slate-300 print:text-black">
                             {a.turma || '-'}
@@ -168,11 +480,16 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                           <td className="py-2.5 px-3 text-slate-200 print:text-black">
                             {a.localEstagio}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-400 print:text-gray-700">
-                            {a.area || 'Desenvolvimento Geral'}
-                          </td>
                           <td className="py-2.5 px-3 font-medium">
-                            <span className={a.status === 'Ativo' ? 'text-emerald-400 print:text-black' : a.status === 'Concluído' ? 'text-blue-400 print:text-black' : 'text-amber-400 print:text-black'}>
+                            <span
+                              className={
+                                a.status === 'Ativo'
+                                  ? 'text-emerald-400 print:text-black'
+                                  : a.status === 'Concluído'
+                                  ? 'text-blue-400 print:text-black'
+                                  : 'text-amber-400 print:text-black'
+                              }
+                            >
                               {a.status || 'Ativo'}
                             </span>
                           </td>
@@ -185,20 +502,22 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: RELATÓRIO DE ATIVOS NO MÊS */}
+          {/* ============================================================== */}
+          {/* TAB 3: RELATÓRIO DE ESTAGIÁRIOS ATIVOS NO MÊS                   */}
+          {/* ============================================================== */}
           {tab === 'ativosMes' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-xs text-slate-400 print:text-gray-600">
                 <span>
-                  Estagiários com Estágio em Andamento em {nomeMesAno}:{' '}
+                  Estagiários Ativos em {nomeMesAno}:{' '}
                   <strong className="text-emerald-400 print:text-black">{estagiariosAtivos.length} ativos</strong>
                 </span>
-                <span>Data de Emissão: {dataHoje}</span>
+                <span>Data de Emissão: {dataEmissaoFormatada}</span>
               </div>
 
               {estagiariosAtivos.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  Nenhum estagiário ativo encontrado para o mês de {nomeMesAno}.
+                  Nenhum estagiário com status Ativo encontrado.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -206,13 +525,12 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                     <thead>
                       <tr className="border-b-2 border-slate-700 bg-slate-800/60 print:bg-gray-100 print:border-black font-semibold text-slate-300 print:text-black">
                         <th className="py-2.5 px-3">Matrícula</th>
-                        <th className="py-2.5 px-3">Estagiário</th>
+                        <th className="py-2.5 px-3">Nome do Estagiário</th>
+                        <th className="py-2.5 px-3">Curso</th>
                         <th className="py-2.5 px-3">Turma</th>
                         <th className="py-2.5 px-3">Ano</th>
                         <th className="py-2.5 px-3">Local de Estágio</th>
-                        <th className="py-2.5 px-3">Carga Horária</th>
-                        <th className="py-2.5 px-3">Início</th>
-                        <th className="py-2.5 px-3">Supervisor no Estúdio</th>
+                        <th className="py-2.5 px-3">Supervisor na Empresa</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 print:divide-gray-300">
@@ -225,6 +543,9 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                             {a.nome}
                           </td>
                           <td className="py-2.5 px-3 text-slate-300 print:text-black">
+                            {a.curso || 'Jogos'}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 print:text-black">
                             {a.turma || '-'}
                           </td>
                           <td className="py-2.5 px-3 text-slate-300 print:text-black">
@@ -232,12 +553,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                           </td>
                           <td className="py-2.5 px-3 text-slate-200 print:text-black">
                             {a.localEstagio}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-300 print:text-black">
-                            {a.cargaHoraria || '30h'}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-300 print:text-black">
-                            {a.dataInicio ? new Date(a.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}
                           </td>
                           <td className="py-2.5 px-3 text-slate-400 print:text-gray-700">
                             {a.supervisor || 'Não informado'}
@@ -251,34 +566,69 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
             </div>
           )}
 
-          {/* Campo de Assinatura para Impressão */}
+          {/* Campo de Assinatura: Andrea Vargas -> Orientação de Estágio + Curso */}
           <div className="pt-10 pb-4 text-center text-xs text-slate-300 print:text-black">
-            <div className="border-t border-slate-600 print:border-black w-2/5 mx-auto pt-2" />
-            <p className="font-semibold text-white print:text-black">Coordenação de Estágios Supervisionados</p>
-            <p className="text-[11px] text-slate-400 print:text-gray-600">Curso Técnico de Programação de Jogos Digitais</p>
+            <div className="max-w-md mx-auto space-y-1">
+              <div className="border-t border-slate-600 print:border-black w-72 mx-auto pt-2" />
+              <p className="font-bold text-base text-white print:text-black tracking-wide">
+                Andrea Vargas
+              </p>
+              <p className="font-semibold text-xs text-slate-300 print:text-black uppercase tracking-wider">
+                Orientação de Estágio
+              </p>
+              <p className="text-[11px] text-slate-400 print:text-gray-700">
+                {cursoFiltro === 'Todos'
+                  ? 'Cursos Técnicos de Jogos Digitais, Informática e Redes'
+                  : getNomeCompletoCurso(cursoFiltro)}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Footer com botão de impressão */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-800/30 print:hidden">
+        {/* Footer com os dois botões: 1. Gerar PDF | 2. Enviar para Impressora */}
+        <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-800/40 gap-3 print:hidden">
           <div className="text-xs text-slate-400">
-            Formato configurado para impressão direta ou exportação em PDF (A4).
+            Relatório pronto para envio oficial à Gerência Escolar.
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors"
+              className="px-3.5 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 rounded-xl transition-colors"
             >
               Fechar
             </button>
+
+            {/* Botão 1: Gerar e Baixar PDF */}
             <button
               type="button"
-              onClick={handlePrint}
-              className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl transition-colors flex items-center space-x-1.5 shadow-md"
+              disabled={isGeneratingPdf}
+              onClick={handleGerarPDF}
+              className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 rounded-xl transition-all flex items-center space-x-1.5 shadow-md shadow-emerald-600/20"
+              title="Baixa o relatório completo em formato PDF pronto para arquivamento ou envio à gerência"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Gerando PDF...</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="w-4 h-4" />
+                  <span>Gerar PDF</span>
+                </>
+              )}
+            </button>
+
+            {/* Botão 2: Enviar diretamente para a impressora */}
+            <button
+              type="button"
+              onClick={handleImprimir}
+              className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 rounded-xl transition-all flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
+              title="Envia o relatório diretamente para a impressora sem menus nem cortes"
             >
               <Printer className="w-4 h-4" />
-              <span>Imprimir Relatório</span>
+              <span>Enviar para Impressora</span>
             </button>
           </div>
         </div>

@@ -291,6 +291,7 @@ export const ReunioesSection: React.FC<ReunioesSectionProps> = ({
                       <tr className="border-b border-slate-800 bg-slate-800/40 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                         <th className="py-2.5 px-3">Matrícula</th>
                         <th className="py-2.5 px-3">Aluno</th>
+                        <th className="py-2.5 px-3">Curso</th>
                         <th className="py-2.5 px-3">Turma</th>
                         <th className="py-2.5 px-3 text-center">Frequência</th>
                         <th className="py-2.5 px-3 text-right">Declaração</th>
@@ -313,6 +314,11 @@ export const ReunioesSection: React.FC<ReunioesSectionProps> = ({
                               <div className="text-[11px] text-slate-400 truncate max-w-xs">
                                 {aluno.localEstagio}
                               </div>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-indigo-300 border border-slate-700">
+                                {aluno.curso || 'Jogos'}
+                              </span>
                             </td>
                             <td className="py-3 px-3 text-xs text-slate-300">
                               {aluno.turma || '-'}

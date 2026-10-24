@@ -1,6 +1,6 @@
 import React from 'react';
-import { X, Building2, User, Hash, Briefcase, Calendar, Clock, UserCheck, Printer, FileText, Users, Tag } from 'lucide-react';
-import { EstagioRecord } from '../types.ts';
+import { X, Building2, User, Hash, Calendar, UserCheck, Printer, FileText, GraduationCap } from 'lucide-react';
+import { EstagioRecord, CURSOS_INFO, getNomeCompletoCurso } from '../types.ts';
 
 interface EstagioDetailsModalProps {
   isOpen: boolean;
@@ -21,6 +21,8 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
     window.print();
   };
 
+  const cursoNomeCompleto = getNomeCompletoCurso(record.curso);
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div 
@@ -39,7 +41,7 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
                 Ficha Cadastral do Estagiário
               </h2>
               <p className="text-xs text-slate-400 print:text-gray-600">
-                Curso Técnico de Programação de Jogos Digitais
+                {cursoNomeCompleto}
               </p>
             </div>
           </div>
@@ -59,6 +61,9 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 print:text-black print:border-gray-400">
                   {record.matricula}
+                </span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 print:border-gray-400 print:text-black">
+                  {record.curso || 'Jogos'}
                 </span>
                 {record.turma && (
                   <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-700 text-slate-200 print:bg-gray-200 print:text-black">
@@ -97,61 +102,36 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
               <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                Curso Técnico
+              </span>
+              <p className="text-sm font-semibold text-white print:text-black">{cursoNomeCompleto}</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
+              <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
                 <Building2 className="w-3.5 h-3.5 text-indigo-400" />
                 Local do Estágio
               </span>
               <p className="text-sm font-semibold text-white print:text-black">{record.localEstagio}</p>
             </div>
 
-            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
+            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50 sm:col-span-2">
               <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
-                <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
-                Área / Especialidade
+                <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
+                Supervisor na Empresa / Instituição
               </span>
-              <p className="text-sm font-semibold text-slate-200 print:text-black">
-                {record.area || 'Desenvolvimento Geral de Jogos'}
+              <p className="text-sm font-medium text-slate-200 print:text-black">
+                {record.supervisor || 'Nenhum supervisor cadastrado.'}
               </p>
             </div>
-
-            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
-              <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                Carga Horária
-              </span>
-              <p className="text-sm font-semibold text-slate-200 print:text-black">
-                {record.cargaHoraria || 'Não especificada'}
-              </p>
-            </div>
-
-            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
-              <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                Data de Início
-              </span>
-              <p className="text-sm font-semibold text-slate-200 print:text-black">
-                {record.dataInicio
-                  ? new Date(record.dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')
-                  : 'Não informada'}
-              </p>
-            </div>
-          </div>
-
-          {/* Supervisor */}
-          <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
-            <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
-              <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-              Supervisor / Responsável no Estúdio
-            </span>
-            <p className="text-sm font-medium text-slate-200 print:text-black">
-              {record.supervisor || 'Nenhum supervisor cadastrado.'}
-            </p>
           </div>
 
           {/* Observações */}
           {record.observacoes && (
             <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
               <span className="text-xs text-slate-400 print:text-gray-600 block mb-1">
-                Atividades / Observações Técnicas:
+                Observações Técnicas:
               </span>
               <p className="text-xs text-slate-300 print:text-black leading-relaxed whitespace-pre-wrap">
                 {record.observacoes}

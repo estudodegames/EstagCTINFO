@@ -5,18 +5,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export type TipoCurso = 'Jogos' | 'Informática' | 'Redes';
+
 export interface EstagioRecord {
   id: string;
   matricula: string;
   nome: string;
+  curso: TipoCurso;
   turma?: string;
   ano?: string;
   sexo?: 'Masculino' | 'Feminino' | 'Outro';
   localEstagio: string;
-  area?: string;
   status?: 'Ativo' | 'Concluído' | 'Pendente';
-  dataInicio?: string;
-  cargaHoraria?: string;
   supervisor?: string;
   observacoes?: string;
   criadoEm: string;
@@ -73,7 +73,10 @@ class StorageService {
       const content = fs.readFileSync(ESTAGIOS_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) {
-        this.estagiosCache = parsed;
+        this.estagiosCache = parsed.map((item: any) => ({
+          ...item,
+          curso: item.curso || 'Jogos',
+        }));
       } else {
         this.estagiosCache = [];
         this.persistEstagios();
@@ -120,14 +123,17 @@ class StorageService {
 
     const now = new Date().toISOString();
     const newRecord: EstagioRecord = {
-      ...data,
       id: 'est-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       matricula: normalizedMatricula,
       nome: data.nome.trim(),
+      curso: data.curso || 'Jogos',
       turma: data.turma ? data.turma.trim() : undefined,
       ano: data.ano ? data.ano.trim() : undefined,
       sexo: data.sexo || undefined,
       localEstagio: data.localEstagio.trim(),
+      status: data.status || 'Ativo',
+      supervisor: data.supervisor ? data.supervisor.trim() : undefined,
+      observacoes: data.observacoes ? data.observacoes.trim() : undefined,
       criadoEm: now,
       atualizadoEm: now,
     };
@@ -164,10 +170,14 @@ class StorageService {
       criadoEm: current.criadoEm,
       matricula: data.matricula ? data.matricula.trim() : current.matricula,
       nome: data.nome ? data.nome.trim() : current.nome,
+      curso: data.curso || current.curso || 'Jogos',
       turma: data.turma !== undefined ? data.turma.trim() : current.turma,
       ano: data.ano !== undefined ? data.ano.trim() : current.ano,
       sexo: data.sexo !== undefined ? data.sexo : current.sexo,
       localEstagio: data.localEstagio ? data.localEstagio.trim() : current.localEstagio,
+      status: data.status || current.status,
+      supervisor: data.supervisor !== undefined ? data.supervisor.trim() : current.supervisor,
+      observacoes: data.observacoes !== undefined ? data.observacoes.trim() : current.observacoes,
       atualizadoEm: new Date().toISOString(),
     };
 

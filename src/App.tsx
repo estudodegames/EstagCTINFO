@@ -15,13 +15,12 @@ import {
   AlertCircle,
   FileSpreadsheet,
   CheckCircle2,
-  Clock,
   RotateCcw,
   Database,
   Calendar,
   Users
 } from 'lucide-react';
-import { EstagioRecord, EstagioFormData, ReuniaoMensal } from './types.ts';
+import { EstagioRecord, EstagioFormData, ReuniaoMensal, TipoCurso } from './types.ts';
 import { api } from './services/api.ts';
 import { Navbar } from './components/Navbar.tsx';
 import { EstagioFormModal } from './components/EstagioFormModal.tsx';
@@ -43,10 +42,11 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Filtros de busca e status
+  // Filtros de busca, status, turma e curso
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
   const [turmaFilter, setTurmaFilter] = useState('Todas');
+  const [cursoFilter, setCursoFilter] = useState('Todos');
 
   // Controle de Modais
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -161,7 +161,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `backup_estagios_jogos_${new Date().toISOString().split('T')[0]}.json`);
+      link.setAttribute('download', `backup_estagios_${new Date().toISOString().split('T')[0]}.json`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -199,18 +199,16 @@ export default function App() {
       return;
     }
 
-    const headers = ['Matricula', 'Nome', 'Turma', 'Ano', 'Sexo', 'Local_Estagio', 'Area_Atuacao', 'Status', 'Carga_Horaria', 'Data_Inicio', 'Supervisor'];
+    const headers = ['Matricula', 'Nome', 'Curso', 'Turma', 'Ano', 'Sexo', 'Local_Estagio', 'Status', 'Supervisor'];
     const rows = estagios.map((r) => [
       `"${r.matricula.replace(/"/g, '""')}"`,
       `"${r.nome.replace(/"/g, '""')}"`,
+      `"${r.curso || 'Jogos'}"`,
       `"${(r.turma || '').replace(/"/g, '""')}"`,
       `"${(r.ano || '').replace(/"/g, '""')}"`,
       `"${(r.sexo || '').replace(/"/g, '""')}"`,
       `"${r.localEstagio.replace(/"/g, '""')}"`,
-      `"${(r.area || '').replace(/"/g, '""')}"`,
       `"${r.status || 'Ativo'}"`,
-      `"${r.cargaHoraria || ''}"`,
-      `"${r.dataInicio || ''}"`,
       `"${(r.supervisor || '').replace(/"/g, '""')}"`,
     ]);
 
@@ -219,7 +217,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `estagios_jogos_digitais_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `estagios_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -243,11 +241,11 @@ export default function App() {
         !q ||
         record.matricula.toLowerCase().includes(q) ||
         record.nome.toLowerCase().includes(q) ||
+        (record.curso && record.curso.toLowerCase().includes(q)) ||
         record.localEstagio.toLowerCase().includes(q) ||
         (record.turma && record.turma.toLowerCase().includes(q)) ||
         (record.ano && record.ano.toLowerCase().includes(q)) ||
         (record.sexo && record.sexo.toLowerCase().includes(q)) ||
-        (record.area && record.area.toLowerCase().includes(q)) ||
         (record.supervisor && record.supervisor.toLowerCase().includes(q));
 
       const matchesStatus =
@@ -256,9 +254,12 @@ export default function App() {
       const matchesTurma =
         turmaFilter === 'Todas' || record.turma === turmaFilter;
 
-      return matchesSearch && matchesStatus && matchesTurma;
+      const matchesCurso =
+        cursoFilter === 'Todos' || record.curso === cursoFilter;
+
+      return matchesSearch && matchesStatus && matchesTurma && matchesCurso;
     });
-  }, [estagios, searchTerm, statusFilter, turmaFilter]);
+  }, [estagios, searchTerm, statusFilter, turmaFilter, cursoFilter]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
@@ -284,13 +285,13 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         {activeTab === 'estagios' ? (
           <>
-            {/* Banner Informativo do Curso */}
+            {/* Banner Informativo dos Cursos */}
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                     <GraduationCap className="w-3.5 h-3.5 mr-1" />
-                    Matriz Curricular Técnica
+                    Cursos Técnicos
                   </span>
                   <span className="text-xs text-slate-400 font-mono">
                     {estagios.length} {estagios.length === 1 ? 'estagiário cadastrado' : 'estagiários cadastrados'}
@@ -300,8 +301,7 @@ export default function App() {
                   Cadastro e Acompanhamento de Estágios
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
-                  Registro oficial dos alunos em estágio curricular do Curso Técnico de Programação de Jogos Digitais. 
-                  Matrícula, Nome, Turma, Ano, Sexo e Local de Estágio.
+                  Registro oficial de estágios curriculares para os cursos de <strong>Jogos Digitais</strong>, <strong>Informática</strong> e <strong>Redes</strong>.
                 </p>
               </div>
 
@@ -328,61 +328,81 @@ export default function App() {
             </div>
 
             {/* Barra de Filtros e Busca Rápida */}
-            <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row gap-3.5 items-stretch sm:items-center justify-between">
-              {/* Campo de Busca */}
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por Matrícula, Nome, Turma, Ano, Sexo, Local ou Área..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
-                  >
-                    Limpar
-                  </button>
+            <div className="bg-slate-900/90 border border-slate-800/90 rounded-2xl p-4 shadow-sm flex flex-col gap-3.5">
+              <div className="flex flex-col sm:flex-row gap-3.5 items-stretch sm:items-center justify-between">
+                {/* Campo de Busca */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar por Matrícula, Nome, Curso, Turma, Ano, Sexo ou Local..."
+                    className="w-full pl-10 pr-4 py-2 bg-slate-950/60 border border-slate-800 rounded-xl text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+
+                {/* Filtro por Turma */}
+                {turmasDisponiveis.length > 0 && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs text-slate-400">Turma:</span>
+                    <select
+                      value={turmaFilter}
+                      onChange={(e) => setTurmaFilter(e.target.value)}
+                      className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="Todas">Todas as Turmas</option>
+                      {turmasDisponiveis.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
+
+                {/* Filtro por Status */}
+                <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto pb-1 sm:pb-0">
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <Filter className="w-3.5 h-3.5 text-slate-500" />
+                    Status:
+                  </span>
+                  {(['Todos', 'Ativo', 'Concluído', 'Pendente'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setStatusFilter(st)}
+                      className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors ${
+                        statusFilter === st
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-750 hover:text-white border border-slate-700/60'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Filtro por Turma */}
-              {turmasDisponiveis.length > 0 && (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs text-slate-400">Turma:</span>
-                  <select
-                    value={turmaFilter}
-                    onChange={(e) => setTurmaFilter(e.target.value)}
-                    className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="Todas">Todas as Turmas</option>
-                    {turmasDisponiveis.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Filtro por Status */}
-              <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto pb-1 sm:pb-0">
-                <span className="text-xs text-slate-400 flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5 text-slate-500" />
-                  Status:
-                </span>
-                {(['Todos', 'Ativo', 'Concluído', 'Pendente'] as const).map((st) => (
+              {/* Filtro Rápido por Curso */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-800/70 overflow-x-auto">
+                <span className="text-xs text-slate-400 font-semibold shrink-0">Curso Técnico:</span>
+                {(['Todos', 'Jogos', 'Informática', 'Redes'] as const).map((c) => (
                   <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors ${
-                      statusFilter === st
-                        ? 'bg-indigo-600 text-white shadow-sm'
-                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-750 hover:text-white border border-slate-700/60'
+                    key={c}
+                    onClick={() => setCursoFilter(c)}
+                    className={`text-xs px-3 py-1 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                      cursoFilter === c
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-750'
                     }`}
                   >
-                    {st}
+                    {c === 'Todos' ? 'Todos os Cursos' : c}
                   </button>
                 ))}
               </div>
@@ -406,6 +426,12 @@ export default function App() {
                           Aluno
                         </span>
                       </th>
+                      <th scope="col" className="py-3.5 px-4 sm:px-6">
+                        <span className="flex items-center gap-1.5">
+                          <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                          Curso
+                        </span>
+                      </th>
                       <th scope="col" className="py-3.5 px-4 sm:px-6 hidden sm:table-cell">
                         <span className="flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-indigo-400" />
@@ -417,9 +443,6 @@ export default function App() {
                           <Building2 className="w-3.5 h-3.5 text-indigo-400" />
                           Local de Estágio
                         </span>
-                      </th>
-                      <th scope="col" className="py-3.5 px-4 sm:px-6 hidden md:table-cell">
-                        Área / Especialidade
                       </th>
                       <th scope="col" className="py-3.5 px-4 sm:px-6">
                         Status
@@ -450,7 +473,7 @@ export default function App() {
                               Nenhum cadastro de estágio encontrado
                             </h4>
                             <p className="text-xs text-slate-400">
-                              {searchTerm || statusFilter !== 'Todos' || turmaFilter !== 'Todas'
+                              {searchTerm || statusFilter !== 'Todos' || turmaFilter !== 'Todas' || cursoFilter !== 'Todos'
                                 ? 'Nenhum resultado corresponde aos filtros selecionados. Tente ajustar o termo de busca.'
                                 : 'Nenhum aluno cadastrado no momento. Cadastre seu primeiro registro abaixo.'}
                             </p>
@@ -497,6 +520,13 @@ export default function App() {
                             </div>
                           </td>
 
+                          {/* Curso */}
+                          <td className="py-4 px-4 sm:px-6 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                              {record.curso || 'Jogos'}
+                            </span>
+                          </td>
+
                           {/* Turma / Ano */}
                           <td className="py-4 px-4 sm:px-6 hidden sm:table-cell whitespace-nowrap">
                             <div className="text-xs font-medium text-slate-200">
@@ -517,13 +547,6 @@ export default function App() {
                                 {record.localEstagio}
                               </span>
                             </div>
-                          </td>
-
-                          {/* Área / Especialidade */}
-                          <td className="py-4 px-4 sm:px-6 hidden md:table-cell">
-                            <span className="text-xs text-slate-300 bg-slate-800/90 border border-slate-700/80 px-2.5 py-0.5 rounded-md inline-block max-w-xs truncate">
-                              {record.area || 'Desenvolvimento Geral'}
-                            </span>
                           </td>
 
                           {/* Status */}
@@ -682,6 +705,7 @@ export default function App() {
         isOpen={isRelatoriosOpen}
         onClose={() => setIsRelatoriosOpen(false)}
         alunos={estagios}
+        reunioes={reunioes}
       />
 
       {/* Modal de Declaração de Comparecimento */}

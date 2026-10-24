@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Building2, User, Hash, Briefcase, Calendar, Clock, UserCheck, AlertCircle, Users, BookOpen } from 'lucide-react';
-import { EstagioFormData, EstagioRecord } from '../types.ts';
+import { X, Save, Building2, User, Hash, UserCheck, AlertCircle, Users, Calendar, GraduationCap, Check } from 'lucide-react';
+import { EstagioFormData, EstagioRecord, TipoCurso, CURSOS_INFO } from '../types.ts';
 
 interface EstagioFormModalProps {
   isOpen: boolean;
@@ -9,18 +9,6 @@ interface EstagioFormModalProps {
   initialData?: EstagioRecord | null;
   isSubmitting: boolean;
 }
-
-const QUICK_AREAS = [
-  'Gameplay Programming (Unity / C#)',
-  'Gameplay & Systems (Unreal / C++)',
-  'Godot & GDScript',
-  'Shaders & Tech Art / VFX',
-  'Backend & Multiplayer em Jogos',
-  'Física e Mecânicas de Jogos',
-  'QA / Playtesting & Testes de Jogos',
-  'Áudio Interativo & Middleware (FMOD / Wwise)',
-  'UI/UX para Jogos Digitais'
-];
 
 export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
   isOpen,
@@ -31,14 +19,12 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
 }) => {
   const [matricula, setMatricula] = useState('');
   const [nome, setNome] = useState('');
+  const [curso, setCurso] = useState<TipoCurso>('Jogos');
   const [turma, setTurma] = useState('');
   const [ano, setAno] = useState('2026');
   const [sexo, setSexo] = useState<'Masculino' | 'Feminino' | 'Outro'>('Masculino');
   const [localEstagio, setLocalEstagio] = useState('');
-  const [area, setArea] = useState('Gameplay Programming (Unity / C#)');
   const [status, setStatus] = useState<'Ativo' | 'Concluído' | 'Pendente'>('Ativo');
-  const [dataInicio, setDataInicio] = useState('');
-  const [cargaHoraria, setCargaHoraria] = useState('30h');
   const [supervisor, setSupervisor] = useState('');
   const [observacoes, setObservacoes] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -47,27 +33,23 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
     if (initialData) {
       setMatricula(initialData.matricula || '');
       setNome(initialData.nome || '');
+      setCurso(initialData.curso || 'Jogos');
       setTurma(initialData.turma || '');
       setAno(initialData.ano || '2026');
       setSexo(initialData.sexo || 'Masculino');
       setLocalEstagio(initialData.localEstagio || '');
-      setArea(initialData.area || 'Gameplay Programming (Unity / C#)');
       setStatus(initialData.status || 'Ativo');
-      setDataInicio(initialData.dataInicio || '');
-      setCargaHoraria(initialData.cargaHoraria || '30h');
       setSupervisor(initialData.supervisor || '');
       setObservacoes(initialData.observacoes || '');
     } else {
       setMatricula('');
       setNome('');
+      setCurso('Jogos');
       setTurma('Turma A');
       setAno('2026');
       setSexo('Masculino');
       setLocalEstagio('');
-      setArea('Gameplay Programming (Unity / C#)');
       setStatus('Ativo');
-      setDataInicio(new Date().toISOString().split('T')[0]);
-      setCargaHoraria('30h');
       setSupervisor('');
       setObservacoes('');
     }
@@ -97,14 +79,12 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
       await onSubmit({
         matricula: matricula.trim(),
         nome: nome.trim(),
+        curso,
         turma: turma.trim() || undefined,
         ano: ano.trim() || undefined,
         sexo: sexo || undefined,
         localEstagio: localEstagio.trim(),
-        area: area.trim(),
         status,
-        dataInicio: dataInicio || undefined,
-        cargaHoraria: cargaHoraria.trim() || undefined,
         supervisor: supervisor.trim() || undefined,
         observacoes: observacoes.trim() || undefined,
       });
@@ -128,14 +108,14 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
           <div>
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
-                <Briefcase className="w-5 h-5" />
+                <GraduationCap className="w-5 h-5" />
               </span>
-              {isEditing ? 'Editar Cadastro de Estágio' : 'Novo Cadastro de Estágio'}
+              {isEditing ? 'Editar Cadastro de Estagiário' : 'Novo Cadastro de Estagiário'}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {isEditing
                 ? `Atualizando informações do aluno ${initialData?.nome}`
-                : 'Preencha os dados do estudante (Matrícula, Nome, Turma, Ano, Sexo e Local)'}
+                : 'Selecione o curso técnico (Jogos, Informática ou Redes) e preencha os dados do aluno'}
             </p>
           </div>
           <button
@@ -155,7 +135,45 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
             </div>
           )}
 
-          {/* Linha 1: Matrícula & Status */}
+          {/* Seleção do Curso: 3 opções (Jogos, Informática, Redes) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+              Curso Técnico do Aluno <span className="text-rose-400">*</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {(['Jogos', 'Informática', 'Redes'] as TipoCurso[]).map((c) => {
+                const info = CURSOS_INFO[c];
+                const isSelected = curso === c;
+                return (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => setCurso(c)}
+                    className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between relative ${
+                      isSelected
+                        ? 'bg-indigo-600/20 border-indigo-500 ring-2 ring-indigo-500/30 text-white'
+                        : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className="font-bold text-sm text-white">{info.nomeCurto}</span>
+                      {isSelected && (
+                        <span className="p-0.5 rounded-full bg-indigo-500 text-white">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-400 leading-tight">
+                      {info.nomeCompleto}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Linha 2: Matrícula & Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -205,7 +223,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
             />
           </div>
 
-          {/* Novos Campos: Turma, Ano e Sexo do Aluno */}
+          {/* Turma, Ano e Sexo */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/60">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -216,7 +234,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
                 type="text"
                 value={turma}
                 onChange={(e) => setTurma(e.target.value)}
-                placeholder="Ex: Turma A, 301-JOG"
+                placeholder="Ex: Turma A, 301"
                 className="w-full px-3 py-2 bg-slate-800/90 border border-slate-700 rounded-lg text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -256,93 +274,29 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-              Local de Estágio (Estúdio / Empresa / Instituição) <span className="text-rose-400">*</span>
+              Local de Estágio (Empresa / Estúdio / Instituição) <span className="text-rose-400">*</span>
             </label>
             <input
               type="text"
               value={localEstagio}
               onChange={(e) => setLocalEstagio(e.target.value)}
-              placeholder="Ex: PixelForge Game Studio, Hoplon, Rogue Snail..."
+              placeholder="Ex: PixelForge Studios, Datacom Redes, Empresa TI..."
               required
               className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-          </div>
-
-          {/* Área / Especialidade */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <Briefcase className="w-3.5 h-3.5 text-indigo-400" />
-              Área de Atuação no Desenvolvimento de Jogos
-            </label>
-            <input
-              type="text"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-              placeholder="Ex: Gameplay Programming, Unreal C++, Unity C#..."
-              className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {QUICK_AREAS.slice(0, 5).map((quick) => (
-                <button
-                  type="button"
-                  key={quick}
-                  onClick={() => setArea(quick)}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition-colors border ${
-                    area === quick
-                      ? 'bg-indigo-600 text-white border-indigo-500'
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200 hover:bg-slate-700'
-                  }`}
-                >
-                  {quick}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Carga Horária & Início */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                Carga Horária Semanal
-              </label>
-              <select
-                value={cargaHoraria}
-                onChange={(e) => setCargaHoraria(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="20h">20 horas semanais (4h/dia)</option>
-                <option value="30h">30 horas semanais (6h/dia)</option>
-                <option value="15h">15 horas semanais</option>
-                <option value="Outro">Outro formato</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                Data de Início do Estágio
-              </label>
-              <input
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
           </div>
 
           {/* Supervisor */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
               <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
-              Supervisor na Empresa / Estúdio
+              Supervisor na Empresa / Instituição
             </label>
             <input
               type="text"
               value={supervisor}
               onChange={(e) => setSupervisor(e.target.value)}
-              placeholder="Ex: Fernando Souza (Tech Lead)"
+              placeholder="Ex: Fernando Souza (Supervisor Técnico)"
               className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
@@ -356,7 +310,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
               rows={2}
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Observações pertinentes sobre as atividades do estágio..."
+              placeholder="Observações pertinentes sobre o estágio..."
               className="w-full px-3.5 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
             />
           </div>

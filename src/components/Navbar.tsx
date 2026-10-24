@@ -47,13 +47,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center space-x-2">
                 <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
                   Gestão de Estágios
-                  <span className="hidden md:inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                    Jogos Digitais
+                  <span className="hidden md:inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    Cursos Técnicos
                   </span>
                 </h1>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="hidden sm:inline">Curso Técnico em Jogos Digitais</span>
+                <span className="hidden sm:inline">Jogos Digitais • Informática • Redes</span>
                 <span className="hidden sm:inline">•</span>
                 <button
                   onClick={onOpenSettings}

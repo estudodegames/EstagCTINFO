@@ -34,15 +34,16 @@ app.get('/api/estagios', (req: Request, res: Response) => {
     const query = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
     const statusFilter = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const turmaFilter = typeof req.query.turma === 'string' ? req.query.turma.trim() : '';
+    const cursoFilter = typeof req.query.curso === 'string' ? req.query.curso.trim() : '';
 
     if (query) {
       records = records.filter(r =>
         r.matricula.toLowerCase().includes(query) ||
         r.nome.toLowerCase().includes(query) ||
+        (r.curso && r.curso.toLowerCase().includes(query)) ||
         r.localEstagio.toLowerCase().includes(query) ||
         (r.turma && r.turma.toLowerCase().includes(query)) ||
         (r.ano && r.ano.toLowerCase().includes(query)) ||
-        (r.area && r.area.toLowerCase().includes(query)) ||
         (r.supervisor && r.supervisor.toLowerCase().includes(query))
       );
     }
@@ -53,6 +54,10 @@ app.get('/api/estagios', (req: Request, res: Response) => {
 
     if (turmaFilter && turmaFilter !== 'Todas') {
       records = records.filter(r => r.turma === turmaFilter);
+    }
+
+    if (cursoFilter && cursoFilter !== 'Todos') {
+      records = records.filter(r => r.curso === cursoFilter);
     }
 
     res.json(records);
@@ -81,14 +86,12 @@ app.post('/api/estagios', (req: Request, res: Response) => {
     const {
       matricula,
       nome,
+      curso,
       turma,
       ano,
       sexo,
       localEstagio,
-      area,
       status,
-      dataInicio,
-      cargaHoraria,
       supervisor,
       observacoes
     } = req.body;
@@ -106,14 +109,12 @@ app.post('/api/estagios', (req: Request, res: Response) => {
     const created = storage.createEstagio({
       matricula: String(matricula).trim(),
       nome: String(nome).trim(),
+      curso: curso || 'Jogos',
       turma: turma ? String(turma).trim() : undefined,
       ano: ano ? String(ano).trim() : undefined,
       sexo: sexo || undefined,
       localEstagio: String(localEstagio).trim(),
-      area: area ? String(area).trim() : 'Desenvolvimento de Jogos Digitais',
       status: status || 'Ativo',
-      dataInicio: dataInicio ? String(dataInicio).trim() : undefined,
-      cargaHoraria: cargaHoraria ? String(cargaHoraria).trim() : '30h',
       supervisor: supervisor ? String(supervisor).trim() : undefined,
       observacoes: observacoes ? String(observacoes).trim() : undefined,
     });
@@ -132,14 +133,12 @@ app.put('/api/estagios/:id', (req: Request, res: Response) => {
     const {
       matricula,
       nome,
+      curso,
       turma,
       ano,
       sexo,
       localEstagio,
-      area,
       status,
-      dataInicio,
-      cargaHoraria,
       supervisor,
       observacoes
     } = req.body;
@@ -157,14 +156,12 @@ app.put('/api/estagios/:id', (req: Request, res: Response) => {
     const updated = storage.updateEstagio(id, {
       ...(matricula && { matricula: String(matricula).trim() }),
       ...(nome && { nome: String(nome).trim() }),
+      ...(curso && { curso }),
       ...(turma !== undefined && { turma: String(turma).trim() }),
       ...(ano !== undefined && { ano: String(ano).trim() }),
       ...(sexo !== undefined && { sexo }),
       ...(localEstagio && { localEstagio: String(localEstagio).trim() }),
-      ...(area !== undefined && { area: String(area).trim() }),
       ...(status && { status }),
-      ...(dataInicio !== undefined && { dataInicio: String(dataInicio).trim() }),
-      ...(cargaHoraria !== undefined && { cargaHoraria: String(cargaHoraria).trim() }),
       ...(supervisor !== undefined && { supervisor: String(supervisor).trim() }),
       ...(observacoes !== undefined && { observacoes: String(observacoes).trim() }),
     });

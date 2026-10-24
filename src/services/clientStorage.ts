@@ -31,7 +31,7 @@ class ClientStorageEngine {
     }
   }
 
-  public getAllEstagios(query?: string, statusFilter?: string, turmaFilter?: string): EstagioRecord[] {
+  public getAllEstagios(query?: string, statusFilter?: string, turmaFilter?: string, cursoFilter?: string): EstagioRecord[] {
     let list = this.loadEstagios();
 
     if (query && query.trim()) {
@@ -39,10 +39,10 @@ class ClientStorageEngine {
       list = list.filter(r =>
         r.matricula.toLowerCase().includes(q) ||
         r.nome.toLowerCase().includes(q) ||
+        (r.curso && r.curso.toLowerCase().includes(q)) ||
         r.localEstagio.toLowerCase().includes(q) ||
         (r.turma && r.turma.toLowerCase().includes(q)) ||
         (r.ano && r.ano.toLowerCase().includes(q)) ||
-        (r.area && r.area.toLowerCase().includes(q)) ||
         (r.supervisor && r.supervisor.toLowerCase().includes(q))
       );
     }
@@ -53,6 +53,10 @@ class ClientStorageEngine {
 
     if (turmaFilter && turmaFilter !== 'Todas') {
       list = list.filter(r => r.turma === turmaFilter);
+    }
+
+    if (cursoFilter && cursoFilter !== 'Todos') {
+      list = list.filter(r => r.curso === cursoFilter);
     }
 
     return list;
@@ -78,11 +82,11 @@ class ClientStorageEngine {
       id: 'est-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       matricula: data.matricula.trim(),
       nome: data.nome.trim(),
+      curso: data.curso || 'Jogos',
       turma: data.turma ? data.turma.trim() : undefined,
       ano: data.ano ? data.ano.trim() : undefined,
       sexo: data.sexo || undefined,
       localEstagio: data.localEstagio.trim(),
-      area: data.area ? data.area.trim() : 'Desenvolvimento de Jogos Digitais',
       status: data.status || 'Ativo',
       criadoEm: now,
       atualizadoEm: now,
@@ -117,10 +121,14 @@ class ClientStorageEngine {
       criadoEm: current.criadoEm,
       matricula: data.matricula ? data.matricula.trim() : current.matricula,
       nome: data.nome ? data.nome.trim() : current.nome,
+      curso: data.curso || current.curso || 'Jogos',
       turma: data.turma !== undefined ? data.turma.trim() : current.turma,
       ano: data.ano !== undefined ? data.ano.trim() : current.ano,
       sexo: data.sexo !== undefined ? data.sexo : current.sexo,
       localEstagio: data.localEstagio ? data.localEstagio.trim() : current.localEstagio,
+      status: data.status || current.status,
+      supervisor: data.supervisor !== undefined ? data.supervisor.trim() : current.supervisor,
+      observacoes: data.observacoes !== undefined ? data.observacoes.trim() : current.observacoes,
       atualizadoEm: new Date().toISOString(),
     };
 
