@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { X, Printer, FileDown, Calendar, FileCheck, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { EstagioRecord, ReuniaoMensal, getNomeCompletoCurso } from '../types.ts';
-import { generatePdfFromElement, printElementDirectly } from '../utils/printAndPdf.ts';
+import { generateDeclaracaoPDF } from '../utils/pdfGenerator.ts';
+import { printElementDirectly } from '../utils/printAndPdf.ts';
 
 interface DeclaracaoComparecimentoModalProps {
   isOpen: boolean;
@@ -54,19 +55,21 @@ export const DeclaracaoComparecimentoModal: React.FC<DeclaracaoComparecimentoMod
   const dataEmissaoFormatada = formatarDataExtenso(dataEmissao);
   const nomeCursoCompleto = getNomeCompletoCurso(aluno.curso);
 
-  // 1. Gerar e baixar arquivo PDF
-  const handleGerarPDF = async () => {
+  // 1. Gerar e baixar arquivo PDF vetorial nativo (jsPDF)
+  const handleGerarPDF = () => {
     try {
       setIsGeneratingPdf(true);
       setFeedbackMsg(null);
-      const filename = `declaracao_comparecimento_${aluno.matricula}_${reuniao.mesAno}.pdf`;
-      await generatePdfFromElement('documento-declaracao-oficial', {
-        filename,
-        orientation: 'portrait',
+
+      generateDeclaracaoPDF({
+        aluno,
+        reuniao,
+        dataEmissaoFormatada,
       });
+
       setFeedbackMsg({
         type: 'success',
-        text: `PDF gerado com sucesso! Arquivo salvo como "${filename}".`,
+        text: `Declaração em PDF gerada com sucesso! O download foi iniciado.`,
       });
     } catch (err: any) {
       console.error('Erro ao gerar PDF da declaração:', err);
@@ -157,7 +160,7 @@ export const DeclaracaoComparecimentoModal: React.FC<DeclaracaoComparecimentoMod
           </div>
         )}
 
-        {/* Documento Oficial da Declaração (Identificado com id para PDF e Impressão) */}
+        {/* Documento Oficial da Declaração */}
         <div
           id="documento-declaracao-oficial"
           className="p-6 sm:p-10 space-y-6 max-h-[68vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-8 print:text-black bg-slate-900 print:bg-white"

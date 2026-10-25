@@ -1,15 +1,7 @@
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
-
 /**
- * Utilitário para geração de PDF e envio de documentos para a impressora
+ * Utilitário para envio de documentos para a impressora
  * Funciona de forma resiliente em iframes, Netlify e ambientes locais.
  */
-
-interface GeneratePdfOptions {
-  filename: string;
-  orientation?: 'portrait' | 'landscape';
-}
 
 /**
  * Cria uma cópia limpa do elemento com estilos específicos para documento oficial
@@ -18,14 +10,12 @@ interface GeneratePdfOptions {
 function createPrintableClone(element: HTMLElement): HTMLElement {
   const clone = element.cloneNode(true) as HTMLElement;
 
-  // Garante fundo branco e cor de texto escura
   clone.style.backgroundColor = '#ffffff';
   clone.style.color = '#111827';
   clone.style.padding = '24px';
   clone.style.borderRadius = '0';
   clone.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
-  // Ajusta elementos para visual de impressão de alta qualidade
   const allElements = clone.querySelectorAll('*');
   allElements.forEach((node) => {
     const el = node as HTMLElement;
@@ -61,60 +51,6 @@ function createPrintableClone(element: HTMLElement): HTMLElement {
   });
 
   return clone;
-}
-
-/**
- * Gera e faz download de um PDF oficial a partir de um ID de elemento HTML
- */
-export async function generatePdfFromElement(
-  elementId: string,
-  options: GeneratePdfOptions
-): Promise<void> {
-  const sourceElement = document.getElementById(elementId);
-  if (!sourceElement) {
-    throw new Error(`Elemento com ID "${elementId}" não foi encontrado para gerar PDF.`);
-  }
-
-  // Cria um contêiner temporário fora da tela com o clone estilizado para impressão
-  const printableClone = createPrintableClone(sourceElement);
-  printableClone.style.position = 'absolute';
-  printableClone.style.left = '-9999px';
-  printableClone.style.top = '0';
-  printableClone.style.width = options.orientation === 'landscape' ? '1120px' : '800px';
-
-  document.body.appendChild(printableClone);
-
-  const cleanFilename = options.filename.endsWith('.pdf')
-    ? options.filename
-    : `${options.filename}.pdf`;
-
-  const pdfOptions = {
-    margin: [10, 10, 10, 10], // mm
-    filename: cleanFilename,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      letterRendering: true,
-      backgroundColor: '#ffffff',
-      scrollY: 0,
-      windowWidth: options.orientation === 'landscape' ? 1200 : 850,
-    },
-    jsPDF: {
-      unit: 'mm',
-      format: 'a4',
-      orientation: options.orientation || 'portrait',
-    },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-  };
-
-  try {
-    await (html2pdf as any)().set(pdfOptions).from(printableClone).save();
-  } finally {
-    if (document.body.contains(printableClone)) {
-      document.body.removeChild(printableClone);
-    }
-  }
 }
 
 /**

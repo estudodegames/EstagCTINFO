@@ -14,7 +14,12 @@ import {
   Loader2,
 } from 'lucide-react';
 import { EstagioRecord, ReuniaoMensal, getNomeCompletoCurso, TipoCurso } from '../types.ts';
-import { generatePdfFromElement, printElementDirectly } from '../utils/printAndPdf.ts';
+import {
+  generateRelatorioFrequenciaPDF,
+  generateRelatorioGeralPDF,
+  generateRelatorioAtivosPDF,
+} from '../utils/pdfGenerator.ts';
+import { printElementDirectly } from '../utils/printAndPdf.ts';
 
 interface RelatoriosModalProps {
   isOpen: boolean;
@@ -91,7 +96,7 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
   // Filtragem dos ativos no mês
   const estagiariosAtivos = alunosFiltrados.filter((a) => a.status === 'Ativo');
 
-  // Título e nome de arquivo do relatório
+  // Título do relatório para impressão direta
   const getReportTitle = () => {
     if (tab === 'frequencia') {
       return `Relatório de Frequência Mensal - ${nomeMesAno}`;
@@ -102,30 +107,46 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
     return `Relatório de Estagiários Ativos - ${nomeMesAno}`;
   };
 
-  const getReportFilename = () => {
-    const sanitizedCurso = cursoFiltro.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    if (tab === 'frequencia') {
-      return `relatorio_frequencia_${mesAnoFiltro}_${sanitizedCurso}.pdf`;
-    }
-    if (tab === 'geral') {
-      return `relatorio_geral_estagiarios_${sanitizedCurso}.pdf`;
-    }
-    return `relatorio_ativos_${mesAnoFiltro}_${sanitizedCurso}.pdf`;
-  };
-
-  // 1. Gerar e baixar PDF do relatório
-  const handleGerarPDF = async () => {
+  // 1. Gerar e baixar PDF do relatório selecionado (jsPDF + autoTable)
+  const handleGerarPDF = () => {
     try {
       setIsGeneratingPdf(true);
       setFeedbackMsg(null);
-      const filename = getReportFilename();
-      await generatePdfFromElement('documento-relatorio-oficial', {
-        filename,
-        orientation: tab === 'frequencia' ? 'landscape' : 'portrait',
-      });
+
+      if (tab === 'frequencia') {
+        generateRelatorioFrequenciaPDF({
+          alunos: alunosFiltrados,
+          reuniao: reuniaoDoMes,
+          mesAnoFiltro,
+          nomeMesAno,
+          cursoFiltro,
+          dataEmissaoFormatada,
+          metricas: {
+            total: alunosFiltrados.length,
+            presentes: countPresentes,
+            faltas: countFaltas,
+            assiduidade: taxaPresenca,
+          },
+        });
+      } else if (tab === 'geral') {
+        generateRelatorioGeralPDF({
+          alunos: alunosFiltrados,
+          cursoFiltro,
+          dataEmissaoFormatada,
+        });
+      } else {
+        generateRelatorioAtivosPDF({
+          alunos: estagiariosAtivos,
+          cursoFiltro,
+          mesAnoFiltro,
+          nomeMesAno,
+          dataEmissaoFormatada,
+        });
+      }
+
       setFeedbackMsg({
         type: 'success',
-        text: `Relatório em PDF gerado com sucesso! Arquivo "${filename}" baixado.`,
+        text: `Relatório em PDF gerado com sucesso! O arquivo foi baixado.`,
       });
     } catch (err: any) {
       console.error('Erro ao gerar PDF do relatório:', err);
@@ -283,7 +304,7 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           </div>
         )}
 
-        {/* Área do Documento para Visualização, PDF e Impressão (Identificada com ID) */}
+        {/* Área do Documento para Visualização, PDF e Impressão */}
         <div
           id="documento-relatorio-oficial"
           className="p-6 sm:p-8 space-y-6 max-h-[66vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-6 print:text-black bg-slate-900 print:bg-white"
@@ -588,7 +609,7 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
         {/* Footer com os dois botões: 1. Gerar PDF | 2. Enviar para Impressora */}
         <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-800/40 gap-3 print:hidden">
           <div className="text-xs text-slate-400">
-            Relatório pronto para envio oficial à Gerência Escolar.
+            Relatório pronto para prestação de contas à Gerência Escolar.
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
