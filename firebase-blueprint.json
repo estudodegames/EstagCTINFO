@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "estagio": {
+      "title": "Estágio",
+      "description": "Registro oficial de estágio do aluno",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador único do estágio"
+        },
+        "matricula": {
+          "type": "string",
+          "description": "Matrícula escolar única do aluno",
+          "maxLength": 64
+        },
+        "nome": {
+          "type": "string",
+          "description": "Nome completo do aluno",
+          "maxLength": 200
+        },
+        "curso": {
+          "type": "string",
+          "description": "Curso técnico do aluno",
+          "enum": ["Jogos", "Informática", "Redes"]
+        },
+        "turma": {
+          "type": "string",
+          "description": "Identificação da turma",
+          "maxLength": 50
+        },
+        "ano": {
+          "type": "string",
+          "description": "Ano letivo",
+          "maxLength": 10
+        },
+        "sexo": {
+          "type": "string",
+          "description": "Gênero do aluno",
+          "enum": ["Masculino", "Feminino", "Outro"]
+        },
+        "localEstagio": {
+          "type": "string",
+          "description": "Empresa ou local de estágio",
+          "maxLength": 250
+        },
+        "status": {
+          "type": "string",
+          "description": "Status da atividade",
+          "enum": ["Ativo", "Concluído", "Pendente"]
+        },
+        "supervisor": {
+          "type": "string",
+          "description": "Supervisor responsável no estágio",
+          "maxLength": 200
+        },
+        "observacoes": {
+          "type": "string",
+          "description": "Observações complementares",
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data ISO de criação"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Data ISO da última atualização"
+        }
+      },
+      "required": ["matricula", "nome", "curso", "localEstagio"]
+    },
+    "reuniao": {
+      "title": "Reunião Mensal",
+      "description": "Registro de reunião mensal de acompanhamento de estágios",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador único da reunião"
+        },
+        "mesAno": {
+          "type": "string",
+          "description": "Mês e ano no formato AAAA-MM",
+          "maxLength": 7
+        },
+        "dataReuniao": {
+          "type": "string",
+          "description": "Data da reunião no formato AAAA-MM-DD",
+          "maxLength": 10
+        },
+        "pauta": {
+          "type": "string",
+          "description": "Pauta de orientação profissional",
+          "maxLength": 500
+        },
+        "observacoes": {
+          "type": "string",
+          "description": "Observações gerais sobre a reunião",
+          "maxLength": 2000
+        },
+        "presencas": {
+          "type": "object",
+          "description": "Mapa de presenças dos estagiários indexado por ID do aluno"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data ISO de criação"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Data ISO da última atualização"
+        }
+      },
+      "required": ["mesAno", "dataReuniao", "pauta"]
+    }
+  },
+  "firestore": {
+    "/estagios/{estagioId}": {
+      "schema": "estagio",
+      "description": "Coleção de registros de estágios cadastrados"
+    },
+    "/reunioes/{reuniaoId}": {
+      "schema": "reuniao",
+      "description": "Coleção de reuniões mensais de acompanhamento e presenças"
+    }
+  }
+}

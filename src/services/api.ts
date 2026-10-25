@@ -1,218 +1,175 @@
 import { EstagioFormData, EstagioRecord, ReuniaoMensal } from '../types.ts';
+import { firestoreStorage } from './firestoreStorage.ts';
 import { clientStorage } from './clientStorage.ts';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase.ts';
 
-const CLOUD_BACKEND_URL = 'https://ais-pre-huldpf6aiilosgwiptzsfk-739851012570.us-east1.run.app';
-const API_URL_KEY = 'estagios_custom_api_url';
+let isCloudConnected = true;
+let initialMigrationDone = false;
 
-export function getApiBaseUrl(): string {
-  const customUrl = localStorage.getItem(API_URL_KEY);
-  if (customUrl) {
-    return customUrl.replace(/\/$/, '') + '/api';
-  }
-
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname.includes('netlify.app') || hostname.includes('vercel.app') || (!hostname.includes('localhost') && !hostname.includes('run.app'))) {
-      return `${CLOUD_BACKEND_URL}/api`;
-    }
-  }
-
-  return '/api';
-}
-
-export function setCustomApiUrl(url: string | null) {
-  if (url && url.trim()) {
-    localStorage.setItem(API_URL_KEY, url.trim());
-  } else {
-    localStorage.removeItem(API_URL_KEY);
-  }
-}
-
-let lastConnectionSuccess = false;
-
+/**
+ * Serviço de API Híbrido com Firestore Cloud em tempo real
+ * Garante que múltiplos computadores (Computer A e Computer B) e a publicação no Netlify
+ * compartilhem exatamente a mesma base de dados em tempo real.
+ */
 export const api = {
   isBackendConnected(): boolean {
-    return lastConnectionSuccess;
+    return isCloudConnected;
   },
 
   // ================= ESTÁGIOS =================
 
-  async getEstagios(query?: string, status?: string, turma?: string, curso?: string): Promise<EstagioRecord[]> {
-    const baseUrl = `${getApiBaseUrl()}/estagios`;
-    const params = new URLSearchParams();
-    if (query) params.append('q', query);
-    if (status && status !== 'Todos') params.append('status', status);
-    if (turma && turma !== 'Todas') params.append('turma', turma);
-    if (curso && curso !== 'Todos') params.append('curso', curso);
-
-    const url = `${baseUrl}${params.toString() ? '?' + params.toString() : ''}`;
-
+  async getEstagios(
+    query?: string,
+    status?: string,
+    turma?: string,
+    curso?: string
+  ): Promise<EstagioRecord[]> {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      // 1. Tenta carregar do Firestore (Nuvem em tempo real)
+      const cloudRecords = await firestoreStorage.getAllEstagios();
+      isCloudConnected = true;
 
-      const res = await fetch(url, {
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        lastConnectionSuccess = true;
-        if (Array.isArray(data)) {
-          clientStorage.importJson(data);
-          return data;
+      // Migração inicial transparente: se a nuvem estiver vazia e o computador local tiver dados, envia para a nuvem
+      if (!initialMigrationDone && cloudRecords.length === 0) {
+        initialMigrationDone = true;
+        const localRecords = clientStorage.getAllEstagios();
+        if (localRecords.length > 0) {
+          console.log('[Sincronização] Enviando registros locais para o banco em nuvem...');
+          for (const rec of localRecords) {
+            await firestoreStorage.createEstagio(rec);
+          }
+          return await firestoreStorage.getAllEstagios();
         }
       }
-    } catch (err) {
-      console.warn('[API] Falha ao conectar ao servidor central, lendo cache local:', err);
-      lastConnectionSuccess = false;
-    }
 
-    return clientStorage.getAllEstagios(query, status, turma, curso);
+      // Sincroniza cache local para redundância
+      clientStorage.importJson(cloudRecords);
+
+      let filtered = cloudRecords;
+      if (query && query.trim()) {
+        const q = query.trim().toLowerCase();
+        filtered = filtered.filter(
+          (r) =>
+            r.matricula.toLowerCase().includes(q) ||
+            r.nome.toLowerCase().includes(q) ||
+            (r.curso && r.curso.toLowerCase().includes(q)) ||
+            r.localEstagio.toLowerCase().includes(q) ||
+            (r.turma && r.turma.toLowerCase().includes(q)) ||
+            (r.ano && r.ano.toLowerCase().includes(q)) ||
+            (r.supervisor && r.supervisor.toLowerCase().includes(q))
+        );
+      }
+      if (status && status !== 'Todos') {
+        filtered = filtered.filter((r) => r.status === status);
+      }
+      if (turma && turma !== 'Todas') {
+        filtered = filtered.filter((r) => r.turma === turma);
+      }
+      if (curso && curso !== 'Todos') {
+        filtered = filtered.filter((r) => r.curso === curso);
+      }
+
+      return filtered;
+    } catch (err) {
+      console.warn('[API Cloud] Firestore indisponível no momento, usando cache local:', err);
+      isCloudConnected = false;
+      return clientStorage.getAllEstagios(query, status, turma, curso);
+    }
   },
 
   async getEstagioById(id: string): Promise<EstagioRecord> {
-    const baseUrl = `${getApiBaseUrl()}/estagios`;
     try {
-      const res = await fetch(`${baseUrl}/${id}`, { headers: { Accept: 'application/json' } });
-      if (res.ok) {
-        lastConnectionSuccess = true;
-        return await res.json();
+      const record = await firestoreStorage.getEstagioById(id);
+      if (record) {
+        isCloudConnected = true;
+        return record;
       }
     } catch {
-      lastConnectionSuccess = false;
+      isCloudConnected = false;
     }
 
-    const item = clientStorage.getEstagioById(id);
-    if (!item) throw new Error('Estágio não encontrado');
-    return item;
+    const local = clientStorage.getEstagioById(id);
+    if (!local) throw new Error('Estágio não encontrado.');
+    return local;
   },
 
   async createEstagio(data: EstagioFormData): Promise<EstagioRecord> {
-    const baseUrl = `${getApiBaseUrl()}/estagios`;
-
     try {
-      const res = await fetch(baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || 'Erro ao cadastrar estágio');
-        }
-        lastConnectionSuccess = true;
-        try { clientStorage.createEstagio(data); } catch {}
-        return json;
-      }
+      // Grava no Firestore na nuvem
+      const created = await firestoreStorage.createEstagio(data);
+      isCloudConnected = true;
+      try { clientStorage.createEstagio(data); } catch {}
+      return created;
     } catch (err: any) {
-      if (err.message && (err.message.includes('matrícula') || err.message.includes('obrigatório'))) {
-        throw err;
-      }
-      lastConnectionSuccess = false;
+      console.warn('[API Cloud] Falha ao gravar no Firestore, salvando localmente:', err);
+      isCloudConnected = false;
+      return clientStorage.createEstagio(data);
     }
-
-    return clientStorage.createEstagio(data);
   },
 
   async updateEstagio(id: string, data: Partial<EstagioFormData>): Promise<EstagioRecord> {
-    const baseUrl = `${getApiBaseUrl()}/estagios`;
-
     try {
-      const res = await fetch(`${baseUrl}/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || 'Erro ao atualizar estágio');
-        }
-        lastConnectionSuccess = true;
-        try { clientStorage.updateEstagio(id, data); } catch {}
-        return json;
-      }
+      const updated = await firestoreStorage.updateEstagio(id, data);
+      isCloudConnected = true;
+      try { clientStorage.updateEstagio(id, data); } catch {}
+      return updated;
     } catch (err: any) {
-      if (err.message && (err.message.includes('matrícula') || err.message.includes('branco'))) {
-        throw err;
-      }
-      lastConnectionSuccess = false;
+      console.warn('[API Cloud] Falha ao atualizar no Firestore, atualizando localmente:', err);
+      isCloudConnected = false;
+      return clientStorage.updateEstagio(id, data);
     }
-
-    return clientStorage.updateEstagio(id, data);
   },
 
   async deleteEstagio(id: string): Promise<void> {
-    const baseUrl = `${getApiBaseUrl()}/estagios`;
-
     try { clientStorage.deleteEstagio(id); } catch {}
 
     try {
-      const res = await fetch(`${baseUrl}/${id}`, {
-        method: 'DELETE',
-        headers: { Accept: 'application/json' },
-      });
-      if (res.ok) {
-        lastConnectionSuccess = true;
-        return;
-      }
-    } catch {
-      lastConnectionSuccess = false;
+      await firestoreStorage.deleteEstagio(id);
+      isCloudConnected = true;
+    } catch (err) {
+      console.warn('[API Cloud] Falha ao excluir do Firestore:', err);
+      isCloudConnected = false;
     }
   },
 
   async clearAllEstagios(): Promise<void> {
-    clientStorage.clearAllEstagios();
-    const records = await this.getEstagios();
-    for (const r of records) {
-      await this.deleteEstagio(r.id);
+    try { clientStorage.clearAllEstagios(); } catch {}
+
+    try {
+      await firestoreStorage.clearAllEstagios();
+      isCloudConnected = true;
+    } catch (err) {
+      console.warn('[API Cloud] Falha ao limpar Firestore:', err);
+      isCloudConnected = false;
     }
   },
 
   // ================= REUNIÕES MENSAIS & FREQUÊNCIA =================
 
   async getReunioes(): Promise<ReuniaoMensal[]> {
-    const baseUrl = `${getApiBaseUrl()}/reunioes`;
-
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const cloudReunioes = await firestoreStorage.getAllReunioes();
+      isCloudConnected = true;
 
-      const res = await fetch(baseUrl, {
-        headers: { Accept: 'application/json' },
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        lastConnectionSuccess = true;
-        if (Array.isArray(data)) {
-          clientStorage.importReunioesJson(data);
-          return data;
+      // Se nuvem estiver vazia, migra locais
+      if (cloudReunioes.length === 0) {
+        const localReunioes = clientStorage.getAllReunioes();
+        if (localReunioes.length > 0) {
+          for (const r of localReunioes) {
+            await firestoreStorage.createReuniao(r);
+          }
+          return await firestoreStorage.getAllReunioes();
         }
       }
-    } catch {
-      lastConnectionSuccess = false;
-    }
 
-    return clientStorage.getAllReunioes();
+      clientStorage.importReunioesJson(cloudReunioes);
+      return cloudReunioes;
+    } catch (err) {
+      console.warn('[API Cloud] Falha ao listar reuniões da nuvem:', err);
+      isCloudConnected = false;
+      return clientStorage.getAllReunioes();
+    }
   },
 
   async createReuniao(data: {
@@ -221,30 +178,15 @@ export const api = {
     pauta: string;
     observacoes?: string;
   }): Promise<ReuniaoMensal> {
-    const baseUrl = `${getApiBaseUrl()}/reunioes`;
-
     try {
-      const res = await fetch(baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const json = await res.json();
-        lastConnectionSuccess = true;
-        try { clientStorage.createReuniao(data); } catch {}
-        return json;
-      }
-    } catch {
-      lastConnectionSuccess = false;
+      const created = await firestoreStorage.createReuniao(data);
+      isCloudConnected = true;
+      try { clientStorage.createReuniao(data); } catch {}
+      return created;
+    } catch (err) {
+      isCloudConnected = false;
+      return clientStorage.createReuniao(data);
     }
-
-    return clientStorage.createReuniao(data);
   },
 
   async updateFrequencia(
@@ -253,47 +195,69 @@ export const api = {
     status: 'Presença' | 'Falta',
     justificativa?: string
   ): Promise<ReuniaoMensal> {
-    const baseUrl = `${getApiBaseUrl()}/reunioes/${reuniaoId}/frequencia`;
-
     try {
-      const res = await fetch(baseUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ alunoId, status, justificativa }),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const json = await res.json();
-        lastConnectionSuccess = true;
-        try { clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa); } catch {}
-        return json;
-      }
-    } catch {
-      lastConnectionSuccess = false;
+      const updated = await firestoreStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
+      isCloudConnected = true;
+      try { clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa); } catch {}
+      return updated;
+    } catch (err) {
+      isCloudConnected = false;
+      return clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
     }
-
-    return clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
   },
 
   async deleteReuniao(id: string): Promise<void> {
-    const baseUrl = `${getApiBaseUrl()}/reunioes/${id}`;
     try { clientStorage.deleteReuniao(id); } catch {}
 
     try {
-      const res = await fetch(baseUrl, {
-        method: 'DELETE',
-        headers: { Accept: 'application/json' },
-      });
-      if (res.ok) {
-        lastConnectionSuccess = true;
-      }
+      await firestoreStorage.deleteReuniao(id);
+      isCloudConnected = true;
     } catch {
-      lastConnectionSuccess = false;
+      isCloudConnected = false;
     }
+  },
+
+  // Escuta em tempo real para sincronização instantânea sem necessidade de reload
+  subscribeToChanges(
+    onEstagiosUpdate: (records: EstagioRecord[]) => void,
+    onReunioesUpdate: (reunioes: ReuniaoMensal[]) => void
+  ) {
+    const unsubEstagios = onSnapshot(
+      collection(db, 'estagios'),
+      (snapshot) => {
+        const list: EstagioRecord[] = [];
+        snapshot.forEach((d) => {
+          if (d.id !== '__connection_ping__') {
+            list.push(d.data() as EstagioRecord);
+          }
+        });
+        list.sort((a, b) => (b.criadoEm || '').localeCompare(a.criadoEm || ''));
+        onEstagiosUpdate(list);
+      },
+      (error) => {
+        console.warn('[Firestore onSnapshot estagios]', error);
+      }
+    );
+
+    const unsubReunioes = onSnapshot(
+      collection(db, 'reunioes'),
+      (snapshot) => {
+        const list: ReuniaoMensal[] = [];
+        snapshot.forEach((d) => {
+          list.push(d.data() as ReuniaoMensal);
+        });
+        list.sort((a, b) => b.dataReuniao.localeCompare(a.dataReuniao));
+        onReunioesUpdate(list);
+      },
+      (error) => {
+        console.warn('[Firestore onSnapshot reunioes]', error);
+      }
+    );
+
+    return () => {
+      unsubEstagios();
+      unsubReunioes();
+    };
   },
 
   exportJson(): string {
@@ -302,5 +266,5 @@ export const api = {
 
   importJson(data: EstagioRecord[]): EstagioRecord[] {
     return clientStorage.importJson(data);
-  }
+  },
 };

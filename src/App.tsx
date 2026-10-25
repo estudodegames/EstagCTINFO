@@ -86,6 +86,21 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+
+    // Sincronização em tempo real entre múltiplos computadores (Computer A e B)
+    const unsubscribe = api.subscribeToChanges(
+      (cloudEstagios) => {
+        setEstagios(cloudEstagios);
+        setIsLoading(false);
+      },
+      (cloudReunioes) => {
+        setReunioes(cloudReunioes);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {

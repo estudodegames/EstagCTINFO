@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Bloqueio padrão para qualquer caminho não declarado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Validador de ID para proteção contra caracteres maliciosos
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Coleção de Estágios: Acesso público compartilhado com validação rigorosa de campos
+    match /estagios/{estagioId} {
+      allow read: if true;
+      allow create, update: if isValidId(estagioId)
+        && request.resource.data.matricula is string
+        && request.resource.data.matricula.size() > 0
+        && request.resource.data.matricula.size() <= 64
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() > 0
+        && request.resource.data.nome.size() <= 200
+        && request.resource.data.localEstagio is string
+        && request.resource.data.localEstagio.size() > 0
+        && request.resource.data.localEstagio.size() <= 250;
+      allow delete: if isValidId(estagioId);
+    }
+
+    // Coleção de Reuniões Mensais e Chamada de Frequência
+    match /reunioes/{reuniaoId} {
+      allow read: if true;
+      allow create, update: if isValidId(reuniaoId)
+        && request.resource.data.mesAno is string
+        && request.resource.data.mesAno.size() <= 10
+        && request.resource.data.pauta is string
+        && request.resource.data.pauta.size() <= 1000;
+      allow delete: if isValidId(reuniaoId);
+    }
+  }
+}
