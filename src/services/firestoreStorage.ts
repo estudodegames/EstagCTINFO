@@ -7,7 +7,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebase.ts';
-import { EstagioFormData, EstagioRecord, ReuniaoMensal, FrequenciaItem } from '../types.ts';
+import { EstagioFormData, EstagioRecord, ReuniaoMensal, FrequenciaItem, TipoCurso } from '../types.ts';
 
 enum OperationType {
   CREATE = 'create',
@@ -50,7 +50,25 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  throw new Error(error instanceof Error ? error.message : JSON.stringify(errInfo));
+}
+
+/**
+ * Remove qualquer propriedade cujo valor seja undefined ou null antes de enviar ao Firestore.
+ * O Firestore rejeita objetos que contenham chaves com valor undefined.
+ */
+function cleanFirestoreObject<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined && value !== null) {
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        clean[key] = cleanFirestoreObject(value);
+      } else {
+        clean[key] = value;
+      }
+    }
+  }
+  return clean;
 }
 
 const ESTAGIOS_COLLECTION = 'estagios';
@@ -64,9 +82,16 @@ export const firestoreStorage = {
       const colRef = collection(db, ESTAGIOS_COLLECTION);
       const snapshot = await getDocs(colRef);
       const list: EstagioRecord[] = [];
+      const seenIds = new Set<string>();
+
       snapshot.forEach((d) => {
         if (d.id !== '__connection_ping__') {
-          list.push(d.data() as EstagioRecord);
+          const item = d.data() as EstagioRecord;
+          const recId = item.id || d.id;
+          if (!seenIds.has(recId)) {
+            seenIds.add(recId);
+            list.push({ ...item, id: recId });
+          }
         }
       });
       // Ordena por data de criação decrescente
@@ -81,7 +106,8 @@ export const firestoreStorage = {
       const docRef = doc(db, ESTAGIOS_COLLECTION, id);
       const snapshot = await getDoc(docRef);
       if (!snapshot.exists()) return null;
-      return snapshot.data() as EstagioRecord;
+      const data = snapshot.data() as EstagioRecord;
+      return { ...data, id: data.id || id };
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, `${ESTAGIOS_COLLECTION}/${id}`);
     }
@@ -90,26 +116,29 @@ export const firestoreStorage = {
   async createEstagio(data: EstagioFormData): Promise<EstagioRecord> {
     const id = `est_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
-    const record: EstagioRecord = {
+
+    const docData: Record<string, any> = {
       id,
       matricula: data.matricula.trim(),
       nome: data.nome.trim(),
       curso: data.curso || 'Jogos',
-      turma: data.turma?.trim() || undefined,
-      ano: data.ano?.trim() || undefined,
-      sexo: data.sexo || undefined,
       localEstagio: data.localEstagio.trim(),
       status: data.status || 'Ativo',
-      supervisor: data.supervisor?.trim() || undefined,
-      observacoes: data.observacoes?.trim() || undefined,
       criadoEm: now,
       atualizadoEm: now,
     };
 
+    if (data.turma && data.turma.trim()) docData.turma = data.turma.trim();
+    if (data.ano && data.ano.trim()) docData.ano = data.ano.trim();
+    if (data.sexo) docData.sexo = data.sexo;
+    if (data.supervisor && data.supervisor.trim()) docData.supervisor = data.supervisor.trim();
+    if (data.observacoes && data.observacoes.trim()) docData.observacoes = data.observacoes.trim();
+
     try {
       const docRef = doc(db, ESTAGIOS_COLLECTION, id);
-      await setDoc(docRef, record);
-      return record;
+      const cleaned = cleanFirestoreObject(docData);
+      await setDoc(docRef, cleaned);
+      return cleaned as EstagioRecord;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `${ESTAGIOS_COLLECTION}/${id}`);
     }
@@ -120,24 +149,44 @@ export const firestoreStorage = {
       const current = await this.getEstagioById(id);
       if (!current) throw new Error('Estágio não encontrado para atualização.');
 
-      const updated: EstagioRecord = {
+      const now = new Date().toISOString();
+      const updated: Record<string, any> = {
         ...current,
-        ...(data.matricula !== undefined && { matricula: data.matricula.trim() }),
-        ...(data.nome !== undefined && { nome: data.nome.trim() }),
-        ...(data.curso !== undefined && { curso: data.curso }),
-        ...(data.turma !== undefined && { turma: data.turma.trim() }),
-        ...(data.ano !== undefined && { ano: data.ano.trim() }),
-        ...(data.sexo !== undefined && { sexo: data.sexo }),
-        ...(data.localEstagio !== undefined && { localEstagio: data.localEstagio.trim() }),
-        ...(data.status !== undefined && { status: data.status }),
-        ...(data.supervisor !== undefined && { supervisor: data.supervisor.trim() }),
-        ...(data.observacoes !== undefined && { observacoes: data.observacoes.trim() }),
-        atualizadoEm: new Date().toISOString(),
+        id: current.id,
+        matricula: data.matricula !== undefined ? data.matricula.trim() : current.matricula,
+        nome: data.nome !== undefined ? data.nome.trim() : current.nome,
+        curso: (data.curso || current.curso || 'Jogos') as TipoCurso,
+        localEstagio: data.localEstagio !== undefined ? data.localEstagio.trim() : current.localEstagio,
+        status: data.status || current.status || 'Ativo',
+        criadoEm: current.criadoEm || now,
+        atualizadoEm: now,
       };
 
+      if (data.turma !== undefined) {
+        if (data.turma.trim()) updated.turma = data.turma.trim();
+        else delete updated.turma;
+      }
+      if (data.ano !== undefined) {
+        if (data.ano.trim()) updated.ano = data.ano.trim();
+        else delete updated.ano;
+      }
+      if (data.sexo !== undefined) {
+        if (data.sexo) updated.sexo = data.sexo;
+        else delete updated.sexo;
+      }
+      if (data.supervisor !== undefined) {
+        if (data.supervisor.trim()) updated.supervisor = data.supervisor.trim();
+        else delete updated.supervisor;
+      }
+      if (data.observacoes !== undefined) {
+        if (data.observacoes.trim()) updated.observacoes = data.observacoes.trim();
+        else delete updated.observacoes;
+      }
+
       const docRef = doc(db, ESTAGIOS_COLLECTION, id);
-      await setDoc(docRef, updated);
-      return updated;
+      const cleaned = cleanFirestoreObject(updated);
+      await setDoc(docRef, cleaned);
+      return cleaned as EstagioRecord;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `${ESTAGIOS_COLLECTION}/${id}`);
     }
@@ -171,10 +220,17 @@ export const firestoreStorage = {
       const colRef = collection(db, REUNIOES_COLLECTION);
       const snapshot = await getDocs(colRef);
       const list: ReuniaoMensal[] = [];
+      const seenIds = new Set<string>();
+
       snapshot.forEach((d) => {
-        list.push(d.data() as ReuniaoMensal);
+        const item = d.data() as ReuniaoMensal;
+        const recId = item.id || d.id;
+        if (!seenIds.has(recId)) {
+          seenIds.add(recId);
+          list.push({ ...item, id: recId });
+        }
       });
-      return list.sort((a, b) => b.dataReuniao.localeCompare(a.dataReuniao));
+      return list.sort((a, b) => (b.dataReuniao || '').localeCompare(a.dataReuniao || ''));
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, REUNIOES_COLLECTION);
     }
@@ -188,21 +244,25 @@ export const firestoreStorage = {
   }): Promise<ReuniaoMensal> {
     const id = `reu_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
-    const reuniao: ReuniaoMensal = {
+    const docData: Record<string, any> = {
       id,
-      mesAno: data.mesAno,
-      dataReuniao: data.dataReuniao,
-      pauta: data.pauta,
-      observacoes: data.observacoes || '',
+      mesAno: data.mesAno.trim(),
+      dataReuniao: data.dataReuniao.trim(),
+      pauta: data.pauta.trim(),
       presencas: {},
       criadoEm: now,
       atualizadoEm: now,
     };
 
+    if (data.observacoes && data.observacoes.trim()) {
+      docData.observacoes = data.observacoes.trim();
+    }
+
     try {
       const docRef = doc(db, REUNIOES_COLLECTION, id);
-      await setDoc(docRef, reuniao);
-      return reuniao;
+      const cleaned = cleanFirestoreObject(docData);
+      await setDoc(docRef, cleaned);
+      return cleaned as ReuniaoMensal;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `${REUNIOES_COLLECTION}/${id}`);
     }
@@ -220,25 +280,29 @@ export const firestoreStorage = {
       if (!snapshot.exists()) throw new Error('Reunião não encontrada.');
 
       const current = snapshot.data() as ReuniaoMensal;
-      const novoItem: FrequenciaItem = {
+      const novoItem: Record<string, any> = {
         status,
         dataRegistro: new Date().toISOString(),
-        justificativa: justificativa || undefined,
       };
+      if (justificativa && justificativa.trim()) {
+        novoItem.justificativa = justificativa.trim();
+      }
 
       const updatedPresencas: Record<string, FrequenciaItem> = {
-        ...current.presencas,
-        [alunoId]: novoItem,
+        ...(current.presencas || {}),
+        [alunoId]: novoItem as FrequenciaItem,
       };
 
       const updated: ReuniaoMensal = {
         ...current,
+        id: current.id || reuniaoId,
         presencas: updatedPresencas,
         atualizadoEm: new Date().toISOString(),
       };
 
-      await setDoc(docRef, updated);
-      return updated;
+      const cleaned = cleanFirestoreObject(updated);
+      await setDoc(docRef, cleaned);
+      return cleaned as ReuniaoMensal;
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `${REUNIOES_COLLECTION}/${reuniaoId}`);
     }

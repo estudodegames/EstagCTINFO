@@ -97,6 +97,17 @@ class ClientStorageEngine {
     return newRecord;
   }
 
+  public upsertEstagio(record: EstagioRecord): void {
+    const list = this.loadEstagios();
+    const index = list.findIndex(r => r.id === record.id || r.matricula.trim().toLowerCase() === record.matricula.trim().toLowerCase());
+    if (index >= 0) {
+      list[index] = record;
+    } else {
+      list.unshift(record);
+    }
+    this.saveEstagios(list);
+  }
+
   public updateEstagio(id: string, data: Partial<EstagioFormData>): EstagioRecord {
     const list = this.loadEstagios();
     const index = list.findIndex(r => r.id === id);

@@ -5,12 +5,11 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase.ts';
 
 let isCloudConnected = true;
-let initialMigrationDone = false;
 
 /**
- * Serviço de API Híbrido com Firestore Cloud em tempo real
- * Garante que múltiplos computadores (Computer A e Computer B) e a publicação no Netlify
- * compartilhem exatamente a mesma base de dados em tempo real.
+ * Serviço de API Cloud em tempo real usando Google Cloud Firestore
+ * Compartilha dados instantaneamente entre múltiplos computadores (ex: Computador A, Computador B)
+ * e o link de produção no Netlify sem duplicidade ou desaparecimento de cadastros.
  */
 export const api = {
   isBackendConnected(): boolean {
@@ -26,24 +25,11 @@ export const api = {
     curso?: string
   ): Promise<EstagioRecord[]> {
     try {
-      // 1. Tenta carregar do Firestore (Nuvem em tempo real)
+      // 1. Carrega registros oficiais do Firestore
       const cloudRecords = await firestoreStorage.getAllEstagios();
       isCloudConnected = true;
 
-      // Migração inicial transparente: se a nuvem estiver vazia e o computador local tiver dados, envia para a nuvem
-      if (!initialMigrationDone && cloudRecords.length === 0) {
-        initialMigrationDone = true;
-        const localRecords = clientStorage.getAllEstagios();
-        if (localRecords.length > 0) {
-          console.log('[Sincronização] Enviando registros locais para o banco em nuvem...');
-          for (const rec of localRecords) {
-            await firestoreStorage.createEstagio(rec);
-          }
-          return await firestoreStorage.getAllEstagios();
-        }
-      }
-
-      // Sincroniza cache local para redundância
+      // Sincroniza cache local com a nuvem
       clientStorage.importJson(cloudRecords);
 
       let filtered = cloudRecords;
@@ -71,8 +57,8 @@ export const api = {
       }
 
       return filtered;
-    } catch (err) {
-      console.warn('[API Cloud] Firestore indisponível no momento, usando cache local:', err);
+    } catch (err: any) {
+      console.warn('[API Cloud] Falha ao consultar Firestore, utilizando cache local:', err);
       isCloudConnected = false;
       return clientStorage.getAllEstagios(query, status, turma, curso);
     }
@@ -95,16 +81,24 @@ export const api = {
   },
 
   async createEstagio(data: EstagioFormData): Promise<EstagioRecord> {
+    // 1. Grava no Firestore na nuvem
     try {
-      // Grava no Firestore na nuvem
       const created = await firestoreStorage.createEstagio(data);
       isCloudConnected = true;
-      try { clientStorage.createEstagio(data); } catch {}
+      try {
+        clientStorage.upsertEstagio(created);
+      } catch (cacheErr) {
+        console.warn('[Cache] Falha ao salvar no cache local:', cacheErr);
+      }
       return created;
     } catch (err: any) {
-      console.warn('[API Cloud] Falha ao gravar no Firestore, salvando localmente:', err);
-      isCloudConnected = false;
-      return clientStorage.createEstagio(data);
+      console.error('[API Cloud] Erro ao gravar aluno no Firestore:', err);
+      // Se estiver totalmente offline, salva localmente
+      if (!window.navigator.onLine) {
+        isCloudConnected = false;
+        return clientStorage.createEstagio(data);
+      }
+      throw new Error(`Falha ao salvar no banco em nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
@@ -112,36 +106,47 @@ export const api = {
     try {
       const updated = await firestoreStorage.updateEstagio(id, data);
       isCloudConnected = true;
-      try { clientStorage.updateEstagio(id, data); } catch {}
+      try {
+        clientStorage.upsertEstagio(updated);
+      } catch {}
       return updated;
     } catch (err: any) {
-      console.warn('[API Cloud] Falha ao atualizar no Firestore, atualizando localmente:', err);
-      isCloudConnected = false;
-      return clientStorage.updateEstagio(id, data);
+      console.error('[API Cloud] Erro ao atualizar no Firestore:', err);
+      if (!window.navigator.onLine) {
+        isCloudConnected = false;
+        return clientStorage.updateEstagio(id, data);
+      }
+      throw new Error(`Falha ao atualizar no banco em nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
   async deleteEstagio(id: string): Promise<void> {
-    try { clientStorage.deleteEstagio(id); } catch {}
+    try {
+      clientStorage.deleteEstagio(id);
+    } catch {}
 
     try {
       await firestoreStorage.deleteEstagio(id);
       isCloudConnected = true;
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[API Cloud] Falha ao excluir do Firestore:', err);
       isCloudConnected = false;
+      throw new Error(`Falha ao excluir no banco em nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
   async clearAllEstagios(): Promise<void> {
-    try { clientStorage.clearAllEstagios(); } catch {}
+    try {
+      clientStorage.clearAllEstagios();
+    } catch {}
 
     try {
       await firestoreStorage.clearAllEstagios();
       isCloudConnected = true;
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[API Cloud] Falha ao limpar Firestore:', err);
       isCloudConnected = false;
+      throw new Error(`Falha ao limpar banco em nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
@@ -151,18 +156,6 @@ export const api = {
     try {
       const cloudReunioes = await firestoreStorage.getAllReunioes();
       isCloudConnected = true;
-
-      // Se nuvem estiver vazia, migra locais
-      if (cloudReunioes.length === 0) {
-        const localReunioes = clientStorage.getAllReunioes();
-        if (localReunioes.length > 0) {
-          for (const r of localReunioes) {
-            await firestoreStorage.createReuniao(r);
-          }
-          return await firestoreStorage.getAllReunioes();
-        }
-      }
-
       clientStorage.importReunioesJson(cloudReunioes);
       return cloudReunioes;
     } catch (err) {
@@ -181,11 +174,17 @@ export const api = {
     try {
       const created = await firestoreStorage.createReuniao(data);
       isCloudConnected = true;
-      try { clientStorage.createReuniao(data); } catch {}
+      try {
+        clientStorage.importReunioesJson([created, ...clientStorage.getAllReunioes().filter(r => r.id !== created.id)]);
+      } catch {}
       return created;
-    } catch (err) {
-      isCloudConnected = false;
-      return clientStorage.createReuniao(data);
+    } catch (err: any) {
+      console.error('[API Cloud] Erro ao criar reunião no Firestore:', err);
+      if (!window.navigator.onLine) {
+        isCloudConnected = false;
+        return clientStorage.createReuniao(data);
+      }
+      throw new Error(`Falha ao cadastrar reunião na nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
@@ -198,26 +197,35 @@ export const api = {
     try {
       const updated = await firestoreStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
       isCloudConnected = true;
-      try { clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa); } catch {}
+      try {
+        clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
+      } catch {}
       return updated;
-    } catch (err) {
-      isCloudConnected = false;
-      return clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
+    } catch (err: any) {
+      console.error('[API Cloud] Erro ao registrar presença no Firestore:', err);
+      if (!window.navigator.onLine) {
+        isCloudConnected = false;
+        return clientStorage.updateFrequencia(reuniaoId, alunoId, status, justificativa);
+      }
+      throw new Error(`Falha ao salvar presença na nuvem: ${err.message || 'Erro desconhecido'}`);
     }
   },
 
   async deleteReuniao(id: string): Promise<void> {
-    try { clientStorage.deleteReuniao(id); } catch {}
+    try {
+      clientStorage.deleteReuniao(id);
+    } catch {}
 
     try {
       await firestoreStorage.deleteReuniao(id);
       isCloudConnected = true;
-    } catch {
+    } catch (err: any) {
       isCloudConnected = false;
+      throw new Error(`Falha ao remover reunião: ${err.message || 'Erro'}`);
     }
   },
 
-  // Escuta em tempo real para sincronização instantânea sem necessidade de reload
+  // Escuta em tempo real para sincronização instantânea entre computadores e abas
   subscribeToChanges(
     onEstagiosUpdate: (records: EstagioRecord[]) => void,
     onReunioesUpdate: (reunioes: ReuniaoMensal[]) => void
@@ -226,9 +234,16 @@ export const api = {
       collection(db, 'estagios'),
       (snapshot) => {
         const list: EstagioRecord[] = [];
+        const seenIds = new Set<string>();
+
         snapshot.forEach((d) => {
           if (d.id !== '__connection_ping__') {
-            list.push(d.data() as EstagioRecord);
+            const item = d.data() as EstagioRecord;
+            const recId = item.id || d.id;
+            if (!seenIds.has(recId)) {
+              seenIds.add(recId);
+              list.push({ ...item, id: recId });
+            }
           }
         });
         list.sort((a, b) => (b.criadoEm || '').localeCompare(a.criadoEm || ''));
@@ -243,10 +258,17 @@ export const api = {
       collection(db, 'reunioes'),
       (snapshot) => {
         const list: ReuniaoMensal[] = [];
+        const seenIds = new Set<string>();
+
         snapshot.forEach((d) => {
-          list.push(d.data() as ReuniaoMensal);
+          const item = d.data() as ReuniaoMensal;
+          const recId = item.id || d.id;
+          if (!seenIds.has(recId)) {
+            seenIds.add(recId);
+            list.push({ ...item, id: recId });
+          }
         });
-        list.sort((a, b) => b.dataReuniao.localeCompare(a.dataReuniao));
+        list.sort((a, b) => (b.dataReuniao || '').localeCompare(a.dataReuniao || ''));
         onReunioesUpdate(list);
       },
       (error) => {

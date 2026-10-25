@@ -123,7 +123,12 @@ export default function App() {
         showToast('success', `Cadastro do aluno "${updated.nome}" atualizado com sucesso!`);
       } else {
         const created = await api.createEstagio(formData);
-        setEstagios((prev) => [created, ...prev]);
+        setEstagios((prev) => {
+          if (prev.some((item) => item.id === created.id || item.matricula.trim().toLowerCase() === created.matricula.trim().toLowerCase())) {
+            return prev.map((item) => (item.id === created.id ? created : item));
+          }
+          return [created, ...prev];
+        });
         showToast('success', `Estágio do aluno "${created.nome}" cadastrado com sucesso!`);
       }
       setIsFormModalOpen(false);
