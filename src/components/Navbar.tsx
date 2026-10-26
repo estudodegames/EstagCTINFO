@@ -1,5 +1,20 @@
 import React, { useRef } from 'react';
-import { Gamepad2, Plus, Download, RefreshCw, Upload, Database, Settings, FileSpreadsheet, Calendar, Users } from 'lucide-react';
+import {
+  Gamepad2,
+  Plus,
+  Download,
+  RefreshCw,
+  Upload,
+  Database,
+  Settings,
+  FileSpreadsheet,
+  Calendar,
+  Users,
+  ShieldCheck,
+  LogOut,
+  User as UserIcon
+} from 'lucide-react';
+import { AuthUser } from '../services/authService.ts';
 
 interface NavbarProps {
   activeTab: 'estagios' | 'reunioes';
@@ -11,6 +26,9 @@ interface NavbarProps {
   onExportJSON: () => void;
   onImportJSON: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenSettings: () => void;
+  onOpenSecurity: () => void;
+  onLogout: () => void;
+  currentUser: AuthUser | null;
   totalRecords: number;
   isLoading: boolean;
 }
@@ -25,6 +43,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportJSON,
   onImportJSON,
   onOpenSettings,
+  onOpenSecurity,
+  onLogout,
+  currentUser,
   totalRecords,
   isLoading,
 }) => {
@@ -125,6 +146,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden lg:inline">Atualizar</span>
             </button>
 
+            {/* Políticas de Segurança */}
+            <button
+              onClick={onOpenSecurity}
+              title="Políticas de Segurança e Controle de Acesso"
+              className="p-2 sm:px-2.5 sm:py-2 text-xs font-semibold text-emerald-400 hover:text-white bg-emerald-500/10 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-lg transition-all flex items-center space-x-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden xl:inline">Segurança</span>
+            </button>
+
             {/* Configurações */}
             <button
               onClick={onOpenSettings}
@@ -174,6 +205,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline">Novo Estágio</span>
                 <span className="sm:hidden">Novo</span>
               </button>
+            )}
+
+            {/* Usuário Autenticado & Logout */}
+            {currentUser && (
+              <div className="flex items-center pl-1 sm:pl-2 border-l border-slate-800 space-x-1.5">
+                <div
+                  className="hidden 2xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/60 border border-slate-700/60 text-xs text-slate-300"
+                  title={`Conectado via ${currentUser.authMethod} (${currentUser.role})`}
+                >
+                  <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="font-medium truncate max-w-[120px]">{currentUser.nome}</span>
+                </div>
+
+                <button
+                  onClick={onLogout}
+                  title={`Encerrar sessão de ${currentUser.nome}`}
+                  className="p-2 text-slate-400 hover:text-rose-400 bg-slate-800/80 hover:bg-rose-500/10 border border-slate-700/80 hover:border-rose-500/30 rounded-lg transition-all flex items-center space-x-1 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline text-xs">Sair</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

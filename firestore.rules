@@ -11,7 +11,7 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Coleção de Estágios: Acesso público compartilhado com validação rigorosa de campos
+    // Coleção de Estágios: Validação rigorosa dos dados cadastrais
     match /estagios/{estagioId} {
       allow read: if true;
       allow create, update: if isValidId(estagioId)
@@ -36,6 +36,12 @@ service cloud.firestore {
         && request.resource.data.pauta is string
         && request.resource.data.pauta.size() <= 1000;
       allow delete: if isValidId(reuniaoId);
+    }
+
+    // Políticas de Segurança e Controle de Acesso da Equipe
+    match /seguranca/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId);
     }
   }
 }

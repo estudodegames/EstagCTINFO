@@ -30,9 +30,13 @@ import { ConnectionSettingsModal } from './components/ConnectionSettingsModal.ts
 import { RelatoriosModal } from './components/RelatoriosModal.tsx';
 import { ReunioesSection } from './components/ReunioesSection.tsx';
 import { DeclaracaoComparecimentoModal } from './components/DeclaracaoComparecimentoModal.tsx';
+import { LoginScreen } from './components/LoginScreen.tsx';
+import { SecurityModal } from './components/SecurityModal.tsx';
 import { Toast, ToastMessage } from './components/Toast.tsx';
+import { authService, AuthUser } from './services/authService.ts';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
   const [activeTab, setActiveTab] = useState<'estagios' | 'reunioes'>('estagios');
 
   const [estagios, setEstagios] = useState<EstagioRecord[]>([]);
@@ -59,6 +63,7 @@ export default function App() {
   const [selectedRecord, setSelectedRecord] = useState<EstagioRecord | null>(null);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isRelatoriosOpen, setIsRelatoriosOpen] = useState(false);
 
   // Declaração de comparecimento
@@ -85,6 +90,15 @@ export default function App() {
   };
 
   useEffect(() => {
+    const unsubAuth = authService.onAuthChange((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
     loadData();
 
     // Sincronização em tempo real entre múltiplos computadores (Computer A e B)
@@ -101,7 +115,16 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [currentUser]);
+
+  const handleLogout = async () => {
+    if (window.confirm('Deseja realmente encerrar a sessão de trabalho?')) {
+      await authService.logout();
+      setEstagios([]);
+      setReunioes([]);
+      showToast('info', 'Sessão de trabalho encerrada com segurança.');
+    }
+  };
 
   const showToast = (type: 'success' | 'error' | 'info', text: string) => {
     setToast({
@@ -281,6 +304,21 @@ export default function App() {
     });
   }, [estagios, searchTerm, statusFilter, turmaFilter, cursoFilter]);
 
+  // Se não estiver autenticado, exige login com Conta Google Autorizada ou Chave de Acesso
+  if (!currentUser) {
+    return (
+      <>
+        <LoginScreen
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            showToast('success', `Acesso autorizado! Bem-vindo(a), ${user.nome}.`);
+          }}
+        />
+        {toast && <Toast toast={toast} onDismiss={() => setToast(null)} />}
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
       {/* Barra de Navegação Superior */}
@@ -297,6 +335,9 @@ export default function App() {
         onExportJSON={handleExportJSON}
         onImportJSON={handleImportJSON}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSecurity={() => setIsSecurityModalOpen(true)}
+        onLogout={handleLogout}
+        currentUser={currentUser}
         totalRecords={estagios.length}
         isLoading={isLoading}
       />
@@ -734,6 +775,13 @@ export default function App() {
         onClose={() => setDeclaracaoData(null)}
         aluno={declaracaoData?.aluno || null}
         reuniao={declaracaoData?.reuniao || null}
+      />
+
+      {/* Modal de Políticas de Segurança e Controle de Acesso */}
+      <SecurityModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        onToast={showToast}
       />
 
       {/* Notificação Toast */}
