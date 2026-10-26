@@ -242,10 +242,11 @@ export default function App() {
       return;
     }
 
-    const headers = ['Matricula', 'Nome', 'Curso', 'Turma', 'Ano', 'Sexo', 'Local_Estagio', 'Status', 'Supervisor'];
+    const headers = ['Matricula', 'Nome', 'Email', 'Curso', 'Turma', 'Ano', 'Sexo', 'Local_Estagio', 'Status', 'Supervisor'];
     const rows = estagios.map((r) => [
       `"${r.matricula.replace(/"/g, '""')}"`,
       `"${r.nome.replace(/"/g, '""')}"`,
+      `"${(r.email || '').replace(/"/g, '""')}"`,
       `"${r.curso || 'Jogos'}"`,
       `"${(r.turma || '').replace(/"/g, '""')}"`,
       `"${(r.ano || '').replace(/"/g, '""')}"`,
@@ -284,6 +285,7 @@ export default function App() {
         !q ||
         record.matricula.toLowerCase().includes(q) ||
         record.nome.toLowerCase().includes(q) ||
+        (record.email && record.email.toLowerCase().includes(q)) ||
         (record.curso && record.curso.toLowerCase().includes(q)) ||
         record.localEstagio.toLowerCase().includes(q) ||
         (record.turma && record.turma.toLowerCase().includes(q)) ||
@@ -569,7 +571,12 @@ export default function App() {
                           {/* Nome do Aluno & Sexo */}
                           <td className="py-4 px-4 sm:px-6">
                             <div className="font-semibold text-white">{record.nome}</div>
-                            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                            <div className="flex items-center gap-2 text-[11px] text-slate-400 flex-wrap">
+                              {record.email && (
+                                <span className="text-indigo-400 font-mono text-[11px]">
+                                  {record.email}
+                                </span>
+                              )}
                               {record.sexo && (
                                 <span className="text-slate-400">Sexo: {record.sexo}</span>
                               )}

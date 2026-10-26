@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Building2, User, Hash, Calendar, UserCheck, Printer, FileText, GraduationCap } from 'lucide-react';
+import { X, Building2, User, Hash, Calendar, UserCheck, Printer, FileText, GraduationCap, Mail } from 'lucide-react';
 import { EstagioRecord, CURSOS_INFO, getNomeCompletoCurso } from '../types.ts';
 
 interface EstagioDetailsModalProps {
@@ -114,6 +114,20 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
                 Local do Estágio
               </span>
               <p className="text-sm font-semibold text-white print:text-black">{record.localEstagio}</p>
+            </div>
+
+            <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50">
+              <span className="text-xs text-slate-400 print:text-gray-600 flex items-center gap-1.5 mb-1">
+                <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                E-mail do Aluno
+              </span>
+              <p className="text-sm font-medium text-slate-200 print:text-black truncate">
+                {record.email ? (
+                  <span className="text-indigo-300 print:text-black font-mono">{record.email}</span>
+                ) : (
+                  <span className="text-slate-400 italic">Não informado</span>
+                )}
+              </p>
             </div>
 
             <div className="p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 print:border-gray-300 print:bg-gray-50 sm:col-span-2">

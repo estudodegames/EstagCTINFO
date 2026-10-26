@@ -29,6 +29,7 @@ export interface EstagioRecord {
   id: string;
   matricula: string;
   nome: string;
+  email?: string;
   curso: TipoCurso;
   turma?: string;
   ano?: string;

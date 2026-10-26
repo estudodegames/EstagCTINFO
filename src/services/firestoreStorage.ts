@@ -128,6 +128,7 @@ export const firestoreStorage = {
       atualizadoEm: now,
     };
 
+    if (data.email && data.email.trim()) docData.email = data.email.trim();
     if (data.turma && data.turma.trim()) docData.turma = data.turma.trim();
     if (data.ano && data.ano.trim()) docData.ano = data.ano.trim();
     if (data.sexo) docData.sexo = data.sexo;
@@ -162,6 +163,10 @@ export const firestoreStorage = {
         atualizadoEm: now,
       };
 
+      if (data.email !== undefined) {
+        if (data.email.trim()) updated.email = data.email.trim();
+        else delete updated.email;
+      }
       if (data.turma !== undefined) {
         if (data.turma.trim()) updated.turma = data.turma.trim();
         else delete updated.turma;

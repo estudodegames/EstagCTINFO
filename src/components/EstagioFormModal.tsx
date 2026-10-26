@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Building2, User, Hash, UserCheck, AlertCircle, Users, Calendar, GraduationCap, Check } from 'lucide-react';
+import { X, Save, Building2, User, Hash, UserCheck, AlertCircle, Users, Calendar, GraduationCap, Check, Mail } from 'lucide-react';
 import { EstagioFormData, EstagioRecord, TipoCurso, CURSOS_INFO } from '../types.ts';
 
 interface EstagioFormModalProps {
@@ -19,6 +19,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
 }) => {
   const [matricula, setMatricula] = useState('');
   const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [curso, setCurso] = useState<TipoCurso>('Jogos');
   const [turma, setTurma] = useState('');
   const [ano, setAno] = useState('2026');
@@ -33,6 +34,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
     if (initialData) {
       setMatricula(initialData.matricula || '');
       setNome(initialData.nome || '');
+      setEmail(initialData.email || '');
       setCurso(initialData.curso || 'Jogos');
       setTurma(initialData.turma || '');
       setAno(initialData.ano || '2026');
@@ -44,6 +46,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
     } else {
       setMatricula('');
       setNome('');
+      setEmail('');
       setCurso('Jogos');
       setTurma('Turma A');
       setAno('2026');
@@ -79,6 +82,7 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
       await onSubmit({
         matricula: matricula.trim(),
         nome: nome.trim(),
+        email: email.trim() || undefined,
         curso,
         turma: turma.trim() || undefined,
         ano: ano.trim() || undefined,
@@ -219,6 +223,21 @@ export const EstagioFormModal: React.FC<EstagioFormModalProps> = ({
               onChange={(e) => setNome(e.target.value)}
               placeholder="Ex: Lucas Gabriel Albuquerque"
               required
+              className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* E-mail do Aluno */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Mail className="w-3.5 h-3.5 text-indigo-400" />
+              E-mail do Aluno
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Ex: aluno@escola.edu.br ou aluno@gmail.com"
               className="w-full px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>

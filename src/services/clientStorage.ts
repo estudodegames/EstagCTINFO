@@ -39,6 +39,7 @@ class ClientStorageEngine {
       list = list.filter(r =>
         r.matricula.toLowerCase().includes(q) ||
         r.nome.toLowerCase().includes(q) ||
+        (r.email && r.email.toLowerCase().includes(q)) ||
         (r.curso && r.curso.toLowerCase().includes(q)) ||
         r.localEstagio.toLowerCase().includes(q) ||
         (r.turma && r.turma.toLowerCase().includes(q)) ||
