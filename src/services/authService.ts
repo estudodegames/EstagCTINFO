@@ -250,31 +250,40 @@ class AuthService {
     }
   }
 
-  // 2. LOGIN COM CHAVE DE ACESSO DA EQUIPE
-  public async loginWithAccessKey(key: string, customName?: string): Promise<AuthUser> {
+  // 2. LOGIN COM CHAVE DE ACESSO DA EQUIPE (EXIGE SIGLA ACVR)
+  public async loginWithAccessKey(key: string, identificacao: string): Promise<AuthUser> {
     const policies = await this.getPolicies();
     const cleanKey = key.trim();
+    const cleanSigla = (identificacao || '').trim().toUpperCase();
+
+    if (!cleanSigla) {
+      throw new Error('Por favor, informe a Identificação do Orientador.');
+    }
+
+    if (cleanSigla !== 'ACVR') {
+      this.recordLog(cleanSigla, 'Sigla Não Autorizada', 'Chave de Acesso', false, 'Sigla de orientador inválida');
+      throw new Error('Identificação inválida. Acesso não autorizado.');
+    }
 
     if (!cleanKey) {
-      throw new Error('Por favor, informe a Chave de Acesso.');
+      throw new Error('Por favor, informe a Chave de Acesso da Orientação.');
     }
 
     if (cleanKey !== policies.accessKey.trim()) {
-      this.recordLog(customName || 'Equipe', 'Chave Incorreta', 'Chave de Acesso', false, 'Chave de acesso incorreta digitada');
-      throw new Error('Chave de Acesso incorreta. Verifique a senha da Orientação de Estágios e tente novamente.');
+      this.recordLog('ACVR', 'Chave Incorreta', 'Chave de Acesso', false, 'Chave de acesso incorreta digitada');
+      throw new Error('Chave de Acesso incorreta. Verifique a senha da Orientação e tente novamente.');
     }
 
-    const displayName = customName && customName.trim() ? customName.trim() : 'Orientação de Estágio';
     const user: AuthUser = {
       id: `key_${Date.now()}`,
-      nome: displayName,
+      nome: 'Orientador (ACVR)',
       role: 'Orientador',
       authMethod: 'Chave de Acesso',
       authenticatedAt: new Date().toISOString(),
     };
 
     this.saveSession(user, true);
-    this.recordLog(user.nome, 'Senha da Equipe', 'Chave de Acesso', true);
+    this.recordLog('ACVR - Orientação', 'Chave de Acesso', 'Chave de Acesso', true);
     return user;
   }
 

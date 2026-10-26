@@ -3,19 +3,13 @@ import {
   X,
   Shield,
   Key,
-  Mail,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  AlertCircle,
-  ExternalLink,
   History,
-  Lock,
   Eye,
   EyeOff,
-  Globe,
   Save,
-  UserCheck
+  UserCheck,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
 import { authService, SecurityPolicies, AccessLogEntry } from '../services/authService.ts';
 
@@ -30,9 +24,8 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
   onClose,
   onToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<'emails' | 'key' | 'netlify' | 'logs'>('emails');
+  const [activeTab, setActiveTab] = useState<'key' | 'identificacao' | 'logs'>('key');
   const [policies, setPolicies] = useState<SecurityPolicies | null>(null);
-  const [newEmail, setNewEmail] = useState('');
   const [newKey, setNewKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,58 +53,7 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
 
   if (!isOpen) return null;
 
-  // 1. Adicionar novo e-mail autorizado
-  const handleAddEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = newEmail.trim().toLowerCase();
-    if (!clean || !clean.includes('@')) {
-      onToast('error', 'Por favor, insira um endereço de e-mail válido.');
-      return;
-    }
-    if (policies?.authorizedEmails.map((e) => e.toLowerCase()).includes(clean)) {
-      onToast('info', 'Este e-mail já está autorizado.');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const updatedList = [...(policies?.authorizedEmails || []), clean];
-      const updated = await authService.savePolicies({ authorizedEmails: updatedList });
-      setPolicies(updated);
-      setNewEmail('');
-      onToast('success', `E-mail "${clean}" autorizado com sucesso!`);
-    } catch {
-      onToast('error', 'Erro ao salvar e-mail autorizado.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 2. Remover e-mail autorizado
-  const handleRemoveEmail = async (emailToRemove: string) => {
-    if (emailToRemove.toLowerCase() === 'gamesoundsbr@gmail.com') {
-      onToast('error', 'O e-mail do administrador principal não pode ser removido.');
-      return;
-    }
-
-    if (window.confirm(`Tem certeza que deseja revogar o acesso do e-mail "${emailToRemove}"?`)) {
-      try {
-        setIsLoading(true);
-        const updatedList = (policies?.authorizedEmails || []).filter(
-          (e) => e.toLowerCase() !== emailToRemove.toLowerCase()
-        );
-        const updated = await authService.savePolicies({ authorizedEmails: updatedList });
-        setPolicies(updated);
-        onToast('info', `Acesso revogado para o e-mail "${emailToRemove}".`);
-      } catch {
-        onToast('error', 'Erro ao revogar e-mail.');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  // 3. Salvar nova chave de acesso da equipe
+  // Salvar nova chave de acesso da equipe
   const handleSaveKey = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = newKey.trim();
@@ -124,7 +66,7 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
       setIsLoading(true);
       const updated = await authService.savePolicies({ accessKey: clean });
       setPolicies(updated);
-      onToast('success', 'Chave de Acesso da Equipe atualizada com sucesso em todos os computadores!');
+      onToast('success', 'Chave de Acesso da Orientação atualizada com sucesso em todos os computadores!');
     } catch {
       onToast('error', 'Erro ao atualizar chave de acesso.');
     } finally {
@@ -132,7 +74,7 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
     }
   };
 
-  // 4. Limpar logs
+  // Limpar logs
   const handleClearLogs = () => {
     authService.clearAccessLogs();
     setLogs([]);
@@ -157,7 +99,7 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
                 Políticas de Segurança e Controle de Acesso
               </h2>
               <p className="text-xs text-slate-400">
-                Gerencie quem pode visualizar e operar os estágios e reuniões no aplicativo
+                Gerenciamento de credenciais e auditoria de acesso à Orientação de Estágio
               </p>
             </div>
           </div>
@@ -172,18 +114,6 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
         {/* Abas de Navegação */}
         <div className="flex border-b border-slate-800 px-6 bg-slate-950/40 gap-2 overflow-x-auto">
           <button
-            onClick={() => setActiveTab('emails')}
-            className={`py-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
-              activeTab === 'emails'
-                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>E-mails Autorizados ({policies?.authorizedEmails.length || 0})</span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('key')}
             className={`py-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
               activeTab === 'key'
@@ -192,19 +122,19 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
             }`}
           >
             <Key className="w-3.5 h-3.5" />
-            <span>Senha da Equipe</span>
+            <span>Chave de Acesso</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('netlify')}
+            onClick={() => setActiveTab('identificacao')}
             className={`py-3 px-3 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${
-              activeTab === 'netlify'
+              activeTab === 'identificacao'
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Globe className="w-3.5 h-3.5" />
-            <span>Netlify & Domínios</span>
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Identificação Autorizada</span>
           </button>
 
           <button
@@ -216,92 +146,23 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Registro de Acessos</span>
+            <span>Registro de Acessos ({logs.length})</span>
           </button>
         </div>
 
         {/* Conteúdo da Aba */}
         <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
-          {/* ABA 1: E-MAILS AUTORIZADOS */}
-          {activeTab === 'emails' && (
-            <div className="space-y-4">
-              <div className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2">
-                <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-emerald-400" />
-                  Controle de Acesso por Conta Google
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Somente os usuários cujos e-mails estejam cadastrados nesta lista têm permissão para acessar o aplicativo via Google Sign-In. Qualquer outro usuário será automaticamente bloqueado.
-                </p>
-              </div>
-
-              {/* Formulário para Adicionar E-mail */}
-              <form onSubmit={handleAddEmail} className="flex gap-2">
-                <input
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="Inserir e-mail da coordenação (ex: orientador@escola.edu.br)..."
-                  className="flex-1 px-3.5 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !newEmail.trim()}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Autorizar</span>
-                </button>
-              </form>
-
-              {/* Lista de E-mails */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-slate-400">E-mails Autorizados no Sistema:</span>
-                <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/40">
-                  {policies?.authorizedEmails.map((email) => {
-                    const isMainAdmin = email.toLowerCase() === 'gamesoundsbr@gmail.com';
-                    return (
-                      <div
-                        key={email}
-                        className="px-4 py-3 flex items-center justify-between hover:bg-slate-850/40 transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                          <span className="text-xs sm:text-sm font-mono text-slate-200">{email}</span>
-                          {isMainAdmin && (
-                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-                              Administrador Principal
-                            </span>
-                          )}
-                        </div>
-                        {!isMainAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveEmail(email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                            title="Revogar Acesso"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ABA 2: SENHA DA EQUIPE */}
+          {/* ABA 1: CHAVE DE ACESSO */}
           {activeTab === 'key' && (
             <div className="space-y-4">
               <div className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2">
                 <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
                   <Key className="w-4 h-4 text-indigo-400" />
-                  Chave Mestra de Acesso da Equipe
+                  Chave de Acesso da Orientação
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Permite o acesso de orientadores e professores em qualquer computador (ou pelo link do Netlify) sem a necessidade de efetuar login com conta Google pessoal na máquina.
+                  A chave é necessária para desbloquear o sistema em qualquer computador ou dispositivo.
+                  Ao atualizar a chave aqui, a alteração é sincronizada automaticamente em tempo real no banco de dados.
                 </p>
               </div>
 
@@ -322,13 +183,13 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowKey(!showKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
                     >
                       {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                   <span className="text-[11px] text-slate-500 mt-1 block">
-                    A chave deve ter no mínimo 6 caracteres. Todos os computadores passarão a exigir esta nova chave.
+                    A chave deve possuir no mínimo 6 caracteres.
                   </span>
                 </div>
 
@@ -344,57 +205,57 @@ export const SecurityModal: React.FC<SecurityModalProps> = ({
             </div>
           )}
 
-          {/* ABA 3: NETLIFY & DOMÍNIOS */}
-          {activeTab === 'netlify' && (
-            <div className="space-y-4 text-xs sm:text-sm">
-              <div className="bg-indigo-950/30 border border-indigo-800/50 rounded-2xl p-4 space-y-2">
-                <h3 className="font-semibold text-indigo-300 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-indigo-400" />
-                  Como usar a segurança no Netlify (`estagioeter.netlify.app`)
+          {/* ABA 2: IDENTIFICAÇÃO AUTORIZADA */}
+          {activeTab === 'identificacao' && (
+            <div className="space-y-4">
+              <div className="bg-slate-800/40 border border-slate-700/60 rounded-2xl p-4 space-y-2">
+                <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  Identificação do Orientador Exigida
                 </h3>
-                <p className="text-slate-300 leading-relaxed text-xs">
-                  A <strong>Chave de Acesso da Equipe</strong> funciona imediatamente no Netlify sem nenhuma configuração externa. Caso você também queira habilitar o botão <strong>Entrar com Google</strong> diretamente no Netlify, o Google exige apenas que você autorize o domínio no Firebase.
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Para segurança adicional, além da Chave de Acesso, o sistema exige obrigatoriamente a identificação com a sigla autorizada do orientador responsável.
                 </p>
               </div>
 
-              <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-xs text-slate-300">
-                <span className="font-bold text-white block">Passo a passo rápido (apenas se quiser Google Login no Netlify):</span>
-                <ol className="list-decimal list-inside space-y-2 text-slate-300 pl-1 leading-relaxed">
-                  <li>
-                    Acesse o console do Firebase no link:
-                    <a
-                      href="https://console.firebase.google.com/project/gen-lang-client-0792163666/authentication/settings"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-1 text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-mono text-[11px]"
-                    >
-                      Firebase Authentication &gt; Settings
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </li>
-                  <li>
-                    Na aba <strong>Authorized domains (Domínios autorizados)</strong>, clique no botão <strong>Add domain (Adicionar domínio)</strong>.
-                  </li>
-                  <li>
-                    Digite: <strong className="font-mono text-emerald-300 bg-slate-800 px-1 py-0.5 rounded">estagioeter.netlify.app</strong> e clique em Salvar.
-                  </li>
-                </ol>
-                <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl text-[11px] text-emerald-300 flex items-center gap-2 mt-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  <span>
-                    Enquanto isso, você e toda a equipe da escola já podem utilizar a <strong>Chave de Acesso</strong> em qualquer dispositivo no Netlify com 100% de segurança!
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <span className="text-xs text-slate-400">Sigla Obrigatória Autorizada:</span>
+                  <span className="text-sm font-bold font-mono px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-lg tracking-wider">
+                    ACVR
                   </span>
                 </div>
+
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <span className="text-xs text-slate-400">Orientação Responsável:</span>
+                  <span className="text-xs font-semibold text-white">
+                    Andrea Vargas (Orientação de Estágio)
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Cursos Vinculados:</span>
+                  <span className="text-xs text-slate-300">
+                    Jogos Digitais • Informática • Redes
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-emerald-950/20 border border-emerald-800/30 rounded-xl text-xs text-emerald-300 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                <span>
+                  Qualquer tentativa de login com outra identificação ou sigla incorreta é automaticamente bloqueada e registrada na aba de auditoria.
+                </span>
               </div>
             </div>
           )}
 
-          {/* ABA 4: AUDITORIA / LOGS */}
+          {/* ABA 3: AUDITORIA / LOGS */}
           {activeTab === 'logs' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-400">
-                  Últimos acessos registrados nesta máquina:
+                  Últimos acessos registrados:
                 </span>
                 {logs.length > 0 && (
                   <button
