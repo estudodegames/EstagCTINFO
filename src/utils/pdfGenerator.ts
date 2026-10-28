@@ -215,7 +215,7 @@ interface RelatorioFrequenciaOptions {
   nomeMesAno: string;
   cursoFiltro: string;
   dataEmissaoFormatada: string;
-  metricas: {
+  metricas?: {
     total: number;
     presentes: number;
     faltas: number;
@@ -230,7 +230,6 @@ export function generateRelatorioFrequenciaPDF({
   nomeMesAno,
   cursoFiltro,
   dataEmissaoFormatada,
-  metricas,
 }: RelatorioFrequenciaOptions): void {
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -259,33 +258,7 @@ export function generateRelatorioFrequenciaPDF({
 
   doc.setFontSize(10.5);
   doc.text(`RELATÓRIO MENSAL DE FREQUÊNCIA À REUNIÃO DE ACOMPANHAMENTO — MÊS DE ${nomeMesAno.toUpperCase()}`, pageWidth / 2, y, { align: 'center' });
-  y += 4;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(107, 114, 128);
-  doc.text('Documento oficial destinado à prestação de contas e encaminhamento à Gerência Escolar', pageWidth / 2, y, { align: 'center' });
   y += 6;
-
-  // Bloco de Indicadores
-  const dataReuniaoStr = reuniao
-    ? new Date(reuniao.dataReuniao + 'T00:00:00').toLocaleDateString('pt-BR')
-    : 'Não cadastrada';
-
-  doc.setDrawColor(229, 231, 235);
-  doc.setFillColor(249, 250, 251);
-  doc.roundedRect(14, y, pageWidth - 28, 12, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setTextColor(55, 65, 81);
-  const infoLeft = `Data da Reunião Mensal: ${dataReuniaoStr} ${reuniao?.pauta ? `("${reuniao.pauta}")` : ''}   |   Data de Emissão: ${dataEmissaoFormatada}`;
-  doc.text(infoLeft, 18, y + 7.5);
-
-  const metricsRight = `Total de Alunos: ${metricas.total}   |   Presenças: ${metricas.presentes}   |   Faltas: ${metricas.faltas}   |   Assiduidade: ${metricas.assiduidade}%`;
-  doc.setFont('helvetica', 'bold');
-  doc.text(metricsRight, pageWidth - 18, y + 7.5, { align: 'right' });
-
-  y += 16;
 
   // Tabela com autoTable
   const presencasMap = reuniao?.presencas || {};
@@ -353,9 +326,18 @@ export function generateRelatorioFrequenciaPDF({
   let sigY = finalY + 16;
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  if (sigY > pageHeight - 25) {
+  if (sigY > pageHeight - 35) {
     doc.addPage();
     sigY = 30;
+  }
+
+  // Data de Emissão à direita
+  if (dataEmissaoFormatada) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(55, 65, 81);
+    doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
+    sigY += 14;
   }
 
   const sigX = pageWidth / 2;
@@ -437,13 +419,6 @@ export function generateRelatorioGeralPDF({
   doc.text('RELATÓRIO GERAL DE TODOS OS ESTAGIÁRIOS CADASTRADOS', pageWidth / 2, y, { align: 'center' });
   y += 6;
 
-  // Linha informativa
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(55, 65, 81);
-  doc.text(`Total de Alunos Cadastrados: ${alunos.length}   |   Data de Emissão: ${dataEmissaoFormatada}`, 14, y);
-  y += 6;
-
   // Tabela
   const tableData = alunos.map((aluno) => [
     aluno.matricula,
@@ -491,9 +466,18 @@ export function generateRelatorioGeralPDF({
   let sigY = finalY + 16;
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  if (sigY > pageHeight - 25) {
+  if (sigY > pageHeight - 35) {
     doc.addPage();
     sigY = 30;
+  }
+
+  // Data de Emissão à direita
+  if (dataEmissaoFormatada) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(55, 65, 81);
+    doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
+    sigY += 14;
   }
 
   const sigX = pageWidth / 2;
@@ -566,13 +550,6 @@ export function generateRelatorioAtivosPDF({
   doc.text(`RELATÓRIO DE ESTAGIÁRIOS ATIVOS — MÊS DE ${nomeMesAno.toUpperCase()}`, pageWidth / 2, y, { align: 'center' });
   y += 6;
 
-  // Linha informativa
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(55, 65, 81);
-  doc.text(`Total de Estagiários Ativos: ${alunos.length}   |   Data de Emissão: ${dataEmissaoFormatada}`, 14, y);
-  y += 6;
-
   // Tabela
   const tableData = alunos.map((aluno) => [
     aluno.matricula,
@@ -618,9 +595,18 @@ export function generateRelatorioAtivosPDF({
   let sigY = finalY + 16;
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  if (sigY > pageHeight - 25) {
+  if (sigY > pageHeight - 35) {
     doc.addPage();
     sigY = 30;
+  }
+
+  // Data de Emissão à direita
+  if (dataEmissaoFormatada) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(55, 65, 81);
+    doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
+    sigY += 14;
   }
 
   const sigX = pageWidth / 2;

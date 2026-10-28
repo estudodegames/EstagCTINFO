@@ -326,11 +326,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                 ? 'RELATÓRIO GERAL DE ESTAGIÁRIOS CADASTRADOS'
                 : `RELATÓRIO DE ESTAGIÁRIOS ATIVOS — MÊS DE ${nomeMesAno.toUpperCase()}`}
             </h2>
-            {tab === 'frequencia' && (
-              <p className="text-[11px] text-slate-400 print:text-gray-600">
-                Documento destinado ao encaminhamento e prestação de contas à Gerência Escolar
-              </p>
-            )}
           </div>
 
           {/* ============================================================== */}
@@ -338,44 +333,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           {/* ============================================================== */}
           {tab === 'frequencia' && (
             <div className="space-y-4">
-              {/* Resumo Gerencial / Indicadores */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/60 print:bg-gray-100 print:border-gray-300 text-xs">
-                <div>
-                  <span className="text-slate-400 print:text-gray-600 block">Total Estagiários:</span>
-                  <strong className="text-sm font-bold text-white print:text-black">{alunosFiltrados.length}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 print:text-gray-600 block">Presenças:</span>
-                  <strong className="text-sm font-bold text-emerald-400 print:text-black">{countPresentes}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 print:text-gray-600 block">Faltas:</span>
-                  <strong className="text-sm font-bold text-rose-400 print:text-black">{countFaltas}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 print:text-gray-600 block">Assiduidade:</span>
-                  <strong className="text-sm font-bold text-indigo-300 print:text-black">{taxaPresenca}%</strong>
-                </div>
-              </div>
-
-              {/* Informações da Reunião de Referência */}
-              <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 print:text-gray-600 px-1 gap-2">
-                <div>
-                  <span>Data da Reunião Mensal: </span>
-                  <strong className="text-white print:text-black">
-                    {reuniaoDoMes
-                      ? new Date(reuniaoDoMes.dataReuniao + 'T00:00:00').toLocaleDateString('pt-BR')
-                      : 'Não cadastrada para este mês'}
-                  </strong>
-                  {reuniaoDoMes?.pauta && (
-                    <span className="ml-2 italic text-slate-400 print:text-gray-600">
-                      ("{reuniaoDoMes.pauta}")
-                    </span>
-                  )}
-                </div>
-                <span>Data de Emissão: {dataEmissaoFormatada}</span>
-              </div>
-
               {/* Tabela de Frequência de Todos os Estagiários */}
               {alunosFiltrados.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
@@ -453,11 +410,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           {/* ============================================================== */}
           {tab === 'geral' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 print:text-gray-600">
-                <span>Total de Alunos: <strong>{alunosFiltrados.length}</strong></span>
-                <span>Data de Emissão: {dataEmissaoFormatada}</span>
-              </div>
-
               {alunosFiltrados.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
                   Nenhum estagiário cadastrado.
@@ -528,14 +480,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           {/* ============================================================== */}
           {tab === 'ativosMes' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-slate-400 print:text-gray-600">
-                <span>
-                  Estagiários Ativos em {nomeMesAno}:{' '}
-                  <strong className="text-emerald-400 print:text-black">{estagiariosAtivos.length} ativos</strong>
-                </span>
-                <span>Data de Emissão: {dataEmissaoFormatada}</span>
-              </div>
-
               {estagiariosAtivos.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
                   Nenhum estagiário com status Ativo encontrado.
@@ -587,8 +531,15 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
             </div>
           )}
 
+          {/* Data de Emissão à direita antes da assinatura */}
+          {dataEmissaoFormatada && (
+            <div className="text-right text-xs text-slate-300 print:text-black font-medium pr-2 pt-6">
+              Emitido em {dataEmissaoFormatada}.
+            </div>
+          )}
+
           {/* Campo de Assinatura: Andrea Vargas -> Orientação de Estágio + Curso */}
-          <div className="pt-10 pb-4 text-center text-xs text-slate-300 print:text-black">
+          <div className="pt-8 pb-4 text-center text-xs text-slate-300 print:text-black">
             <div className="max-w-md mx-auto space-y-1">
               <div className="border-t border-slate-600 print:border-black w-72 mx-auto pt-2" />
               <p className="font-bold text-base text-white print:text-black tracking-wide">

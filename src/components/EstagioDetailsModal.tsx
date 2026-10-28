@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Building2, User, Hash, Calendar, UserCheck, Printer, FileText, GraduationCap, Mail } from 'lucide-react';
 import { EstagioRecord, CURSOS_INFO, getNomeCompletoCurso } from '../types.ts';
+import { printElementDirectly } from '../utils/printAndPdf.ts';
 
 interface EstagioDetailsModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
   if (!isOpen || !record) return null;
 
   const handlePrint = () => {
-    window.print();
+    printElementDirectly('ficha-cadastral-conteudo', `Ficha Cadastral - ${record.nome}`);
   };
 
   const cursoNomeCompleto = getNomeCompletoCurso(record.curso);
@@ -54,7 +55,7 @@ export const EstagioDetailsModal: React.FC<EstagioDetailsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto print:max-h-none print:overflow-visible">
+        <div id="ficha-cadastral-conteudo" className="p-6 space-y-5 max-h-[75vh] overflow-y-auto print:max-h-none print:overflow-visible">
           {/* Top Banner with Student Name & Status */}
           <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:bg-gray-100 print:border-gray-300">
             <div>
