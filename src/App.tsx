@@ -357,11 +357,8 @@ export default function App() {
             <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    <GraduationCap className="w-3.5 h-3.5 mr-1" />
-                    Cursos Técnicos
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
+                    <GraduationCap className="w-3.5 h-3.5 mr-1.5" />
                     {estagios.length} {estagios.length === 1 ? 'estagiário cadastrado' : 'estagiários cadastrados'}
                   </span>
                 </div>
