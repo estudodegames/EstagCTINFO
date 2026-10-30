@@ -148,7 +148,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         {/* Rodapé */}
         <div className="text-center mt-6 text-xs text-slate-500">
-          Escola Técnica Estadual • Sistema de Acompanhamento de Estágios Curriculares
+          Escola Técnica Estadual República • CTINFO - Orientação de Estágio
         </div>
       </div>
     </div>

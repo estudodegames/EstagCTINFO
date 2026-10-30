@@ -163,7 +163,7 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
 
   // 2. Enviar diretamente para a impressora
   const handleImprimir = () => {
-    printElementDirectly('documento-relatorio-oficial', getReportTitle());
+    printElementDirectly('documento-relatorio-oficial', getReportTitle(), { orientation: 'landscape' });
   };
 
   return (
@@ -531,28 +531,30 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
             </div>
           )}
 
-          {/* Data de Emissão à direita antes da assinatura */}
-          {dataEmissaoFormatada && (
-            <div className="text-right text-xs text-slate-300 print:text-black font-medium pr-2 pt-6">
-              Emitido em {dataEmissaoFormatada}.
-            </div>
-          )}
+          {/* Bloco de Emissão e Assinatura com proteção contra quebra de página */}
+          <div className="bloco-assinatura print:break-inside-avoid space-y-4 pt-6 pb-4">
+            {dataEmissaoFormatada && (
+              <div className="text-right text-xs text-slate-300 print:text-black font-medium pr-2">
+                Emitido em {dataEmissaoFormatada}.
+              </div>
+            )}
 
-          {/* Campo de Assinatura: Andrea Vargas -> Orientação de Estágio + Curso */}
-          <div className="pt-8 pb-4 text-center text-xs text-slate-300 print:text-black">
-            <div className="max-w-md mx-auto space-y-1">
-              <div className="border-t border-slate-600 print:border-black w-72 mx-auto pt-2" />
-              <p className="font-bold text-base text-white print:text-black tracking-wide">
-                Andrea Vargas
-              </p>
-              <p className="font-semibold text-xs text-slate-300 print:text-black uppercase tracking-wider">
-                Orientação de Estágio
-              </p>
-              <p className="text-[11px] text-slate-400 print:text-gray-700">
-                {cursoFiltro === 'Todos'
-                  ? 'Cursos Técnicos de Jogos Digitais, Informática e Redes'
-                  : getNomeCompletoCurso(cursoFiltro)}
-              </p>
+            {/* Campo de Assinatura: Andrea Vargas -> Orientação de Estágio + Curso */}
+            <div className="text-center text-xs text-slate-300 print:text-black">
+              <div className="max-w-md mx-auto space-y-1">
+                <div className="border-t border-slate-600 print:border-black w-72 mx-auto pt-2" />
+                <p className="font-bold text-base text-white print:text-black tracking-wide">
+                  Andrea Vargas
+                </p>
+                <p className="font-semibold text-xs text-slate-300 print:text-black uppercase tracking-wider">
+                  Orientação de Estágio
+                </p>
+                <p className="text-[11px] text-slate-400 print:text-gray-700">
+                  {cursoFiltro === 'Todos'
+                    ? 'Cursos Técnicos de Jogos Digitais, Informática e Redes'
+                    : getNomeCompletoCurso(cursoFiltro)}
+                </p>
+              </div>
             </div>
           </div>
         </div>

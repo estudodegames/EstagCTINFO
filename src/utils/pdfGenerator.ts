@@ -204,6 +204,70 @@ export function generateDeclaracaoPDF({
 }
 
 /**
+ * Renderiza a tabela protegendo contra assinatura órfã na página final.
+ * Se a tabela terminaria no final da página deixando a assinatura sozinha na próxima página
+ * ("sem nenhum registro aparecendo"), desloca as 3 últimas linhas para a próxima página
+ * junto com a assinatura, garantindo equilíbrio visual e formalidade ao documento.
+ */
+function renderTableWithOrphanProtection(
+  doc: jsPDF,
+  tableConfig: any,
+  bodyData: any[][],
+  startY: number,
+  requiredBottomSpace: number = 52
+): void {
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  if (bodyData.length >= 4) {
+    // 1. Simulação silenciosa em documento auxiliar para verificar onde a tabela termina
+    const testDoc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    });
+    autoTable(testDoc, {
+      ...tableConfig,
+      startY,
+      body: bodyData,
+    });
+
+    const testFinalY = (testDoc as any).lastAutoTable?.finalY || 0;
+
+    // Se o ponto final somado ao bloco de assinatura exceder a altura da página,
+    // a assinatura ficaria isolada na próxima página sem nenhum registro.
+    if (testFinalY + requiredBottomSpace > pageHeight) {
+      const mainRows = bodyData.slice(0, bodyData.length - 3);
+      const last3Rows = bodyData.slice(bodyData.length - 3);
+
+      // Renderiza as linhas anteriores
+      autoTable(doc, {
+        ...tableConfig,
+        startY,
+        body: mainRows,
+      });
+
+      // Cria a nova página para receber as 3 últimas linhas + assinatura
+      doc.addPage();
+
+      // Renderiza as 3 últimas linhas no topo da nova folha (com o cabeçalho das colunas)
+      autoTable(doc, {
+        ...tableConfig,
+        startY: 20,
+        body: last3Rows,
+      });
+      return;
+    }
+  }
+
+  // Renderização normal quando todos os registros e a assinatura cabem na mesma folha
+  autoTable(doc, {
+    ...tableConfig,
+    startY,
+    body: bodyData,
+  });
+}
+
+/**
  * =========================================================================
  * 1. RELATÓRIO DE FREQUÊNCIA MENSAL (ENVIO À GERÊNCIA)
  * =========================================================================
@@ -283,34 +347,34 @@ export function generateRelatorioFrequenciaPDF({
     ];
   });
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma / Ano', 'Local de Estágio', 'Frequência no Mês']],
-    body: tableData,
+  // Configuração da tabela
+  const tableHead = [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma / Ano', 'Local de Estágio', 'Frequência no Mês']];
+  const tableConfig = {
+    head: tableHead,
     margin: { left: 14, right: 14 },
-    theme: 'grid',
+    theme: 'grid' as const,
     styles: {
       fontSize: 8.5,
       cellPadding: 2.5,
-      font: 'helvetica',
-      textColor: [31, 41, 55],
+      font: 'helvetica' as const,
+      textColor: [31, 41, 55] as [number, number, number],
     },
     headStyles: {
-      fillColor: [243, 244, 246],
-      textColor: [17, 24, 39],
-      fontStyle: 'bold',
-      lineColor: [209, 213, 219],
+      fillColor: [243, 244, 246] as [number, number, number],
+      textColor: [17, 24, 39] as [number, number, number],
+      fontStyle: 'bold' as const,
+      lineColor: [209, 213, 219] as [number, number, number],
       lineWidth: 0.2,
     },
     columnStyles: {
-      0: { cellWidth: 32, fontStyle: 'bold' },
+      0: { cellWidth: 32, fontStyle: 'bold' as const },
       1: { cellWidth: 70 },
       2: { cellWidth: 35 },
       3: { cellWidth: 35 },
-      4: { cellWidth: 'auto' },
-      5: { cellWidth: 38, halign: 'center' },
+      4: { cellWidth: 'auto' as const },
+      5: { cellWidth: 38, halign: 'center' as const },
     },
-    didParseCell: (data) => {
+    didParseCell: (data: any) => {
       if (data.section === 'body' && data.column.index === 5) {
         if (data.cell.text[0] === 'PRESENÇA') {
           data.cell.styles.fontStyle = 'bold';
@@ -321,17 +385,14 @@ export function generateRelatorioFrequenciaPDF({
         }
       }
     },
-  });
+  };
 
-  // Assinatura na última página
+  // Renderiza a tabela protegendo contra assinatura órfã na página final
+  renderTableWithOrphanProtection(doc, tableConfig, tableData, y, 52);
+
+  // Assinatura na página onde a tabela foi concluída
   const finalY = (doc as any).lastAutoTable?.finalY || y + 30;
-  let sigY = finalY + 16;
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  if (sigY > pageHeight - 35) {
-    doc.addPage();
-    sigY = 30;
-  }
+  let sigY = finalY + 12;
 
   // Data de Emissão à direita
   if (dataEmissaoFormatada) {
@@ -339,7 +400,9 @@ export function generateRelatorioFrequenciaPDF({
     doc.setFontSize(9);
     doc.setTextColor(55, 65, 81);
     doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
-    sigY += 14;
+    sigY += 12;
+  } else {
+    sigY += 4;
   }
 
   const sigX = pageWidth / 2;
@@ -436,45 +499,40 @@ export function generateRelatorioGeralPDF({
     aluno.status || 'Ativo',
   ]);
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma', 'Ano', 'Sexo', 'Local de Estágio', 'Status']],
-    body: tableData,
+  const tableHead = [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma', 'Ano', 'Sexo', 'Local de Estágio', 'Status']];
+  const tableConfig = {
+    head: tableHead,
     margin: { left: 14, right: 14 },
-    theme: 'grid',
+    theme: 'grid' as const,
     styles: {
       fontSize: 8.5,
       cellPadding: 2.5,
-      textColor: [31, 41, 55],
+      textColor: [31, 41, 55] as [number, number, number],
     },
     headStyles: {
-      fillColor: [243, 244, 246],
-      textColor: [17, 24, 39],
-      fontStyle: 'bold',
-      lineColor: [209, 213, 219],
+      fillColor: [243, 244, 246] as [number, number, number],
+      textColor: [17, 24, 39] as [number, number, number],
+      fontStyle: 'bold' as const,
+      lineColor: [209, 213, 219] as [number, number, number],
       lineWidth: 0.2,
     },
     columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold' },
+      0: { cellWidth: 28, fontStyle: 'bold' as const },
       1: { cellWidth: 55 },
       2: { cellWidth: 32 },
       3: { cellWidth: 22 },
       4: { cellWidth: 18 },
       5: { cellWidth: 22 },
-      6: { cellWidth: 'auto' },
-      7: { cellWidth: 26, halign: 'center' },
+      6: { cellWidth: 'auto' as const },
+      7: { cellWidth: 26, halign: 'center' as const },
     },
-  });
+  };
+
+  renderTableWithOrphanProtection(doc, tableConfig, tableData, y, 52);
 
   // Assinatura na última página
   const finalY = (doc as any).lastAutoTable?.finalY || y + 30;
-  let sigY = finalY + 16;
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  if (sigY > pageHeight - 35) {
-    doc.addPage();
-    sigY = 30;
-  }
+  let sigY = finalY + 12;
 
   // Data de Emissão à direita
   if (dataEmissaoFormatada) {
@@ -482,7 +540,9 @@ export function generateRelatorioGeralPDF({
     doc.setFontSize(9);
     doc.setTextColor(55, 65, 81);
     doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
-    sigY += 14;
+    sigY += 12;
+  } else {
+    sigY += 4;
   }
 
   const sigX = pageWidth / 2;
@@ -501,6 +561,19 @@ export function generateRelatorioGeralPDF({
   doc.setFontSize(9);
   doc.setTextColor(55, 65, 81);
   doc.text('ORIENTAÇÃO DE ESTÁGIO', sigX, sigY, { align: 'center' });
+  sigY += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text(
+    cursoFiltro === 'Todos'
+      ? 'Cursos Técnicos de Jogos Digitais, Informática e Redes'
+      : getNomeCompletoCurso(cursoFiltro),
+    sigX,
+    sigY,
+    { align: 'center' }
+  );
 
   const cleanCurso = cursoFiltro.toLowerCase().replace(/[^a-z0-9]/g, '_');
   doc.save(`relatorio_geral_estagiarios_${cleanCurso}.pdf`);
@@ -569,44 +642,39 @@ export function generateRelatorioAtivosPDF({
     aluno.supervisor || 'Não informado',
   ]);
 
-  autoTable(doc, {
-    startY: y,
-    head: [['Matrícula', 'Nome do Estagiário', 'Curso', 'Turma', 'Ano', 'Local de Estágio', 'Supervisor na Empresa']],
-    body: tableData,
+  const tableHead = [['Matrícula', 'Nome do Estagiário', 'Curso', 'Turma', 'Ano', 'Local de Estágio', 'Supervisor na Empresa']];
+  const tableConfig = {
+    head: tableHead,
     margin: { left: 14, right: 14 },
-    theme: 'grid',
+    theme: 'grid' as const,
     styles: {
       fontSize: 8.5,
       cellPadding: 2.5,
-      textColor: [31, 41, 55],
+      textColor: [31, 41, 55] as [number, number, number],
     },
     headStyles: {
-      fillColor: [243, 244, 246],
-      textColor: [17, 24, 39],
-      fontStyle: 'bold',
-      lineColor: [209, 213, 219],
+      fillColor: [243, 244, 246] as [number, number, number],
+      textColor: [17, 24, 39] as [number, number, number],
+      fontStyle: 'bold' as const,
+      lineColor: [209, 213, 219] as [number, number, number],
       lineWidth: 0.2,
     },
     columnStyles: {
-      0: { cellWidth: 28, fontStyle: 'bold' },
+      0: { cellWidth: 28, fontStyle: 'bold' as const },
       1: { cellWidth: 55 },
       2: { cellWidth: 32 },
       3: { cellWidth: 22 },
       4: { cellWidth: 18 },
       5: { cellWidth: 60 },
-      6: { cellWidth: 'auto' },
+      6: { cellWidth: 'auto' as const },
     },
-  });
+  };
+
+  renderTableWithOrphanProtection(doc, tableConfig, tableData, y, 52);
 
   // Assinatura na última página
   const finalY = (doc as any).lastAutoTable?.finalY || y + 30;
-  let sigY = finalY + 16;
-  const pageHeight = doc.internal.pageSize.getHeight();
-
-  if (sigY > pageHeight - 35) {
-    doc.addPage();
-    sigY = 30;
-  }
+  let sigY = finalY + 12;
 
   // Data de Emissão à direita
   if (dataEmissaoFormatada) {
@@ -614,7 +682,9 @@ export function generateRelatorioAtivosPDF({
     doc.setFontSize(9);
     doc.setTextColor(55, 65, 81);
     doc.text(`Emitido em ${dataEmissaoFormatada}.`, pageWidth - 14, sigY, { align: 'right' });
-    sigY += 14;
+    sigY += 12;
+  } else {
+    sigY += 4;
   }
 
   const sigX = pageWidth / 2;
@@ -633,6 +703,19 @@ export function generateRelatorioAtivosPDF({
   doc.setFontSize(9);
   doc.setTextColor(55, 65, 81);
   doc.text('ORIENTAÇÃO DE ESTÁGIO', sigX, sigY, { align: 'center' });
+  sigY += 4;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text(
+    cursoFiltro === 'Todos'
+      ? 'Cursos Técnicos de Jogos Digitais, Informática e Redes'
+      : getNomeCompletoCurso(cursoFiltro),
+    sigX,
+    sigY,
+    { align: 'center' }
+  );
 
   const cleanCurso = cursoFiltro.toLowerCase().replace(/[^a-z0-9]/g, '_');
   doc.save(`relatorio_ativos_${mesAnoFiltro}_${cleanCurso}.pdf`);

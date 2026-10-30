@@ -3,12 +3,15 @@
  * Funciona de forma imediata e resiliente em todos os navegadores, iframes, Netlify e ambientes locais.
  */
 
-function ensurePrintStyles(): void {
+function ensurePrintStyles(orientation: 'portrait' | 'landscape' = 'portrait'): void {
   const STYLE_ID = 'app-official-print-styles';
-  if (document.getElementById(STYLE_ID)) return;
+  let styleEl = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
 
-  const styleEl = document.createElement('style');
-  styleEl.id = STYLE_ID;
   styleEl.textContent = `
     @media screen {
       #app-print-portal {
@@ -17,8 +20,8 @@ function ensurePrintStyles(): void {
     }
     @media print {
       @page {
-        size: A4 portrait;
-        margin: 12mm 15mm 12mm 15mm;
+        size: A4 ${orientation};
+        margin: ${orientation === 'landscape' ? '10mm 12mm 10mm 12mm' : '12mm 15mm 12mm 15mm'};
       }
       * {
         -webkit-print-color-adjust: exact !important;
@@ -52,8 +55,8 @@ function ensurePrintStyles(): void {
       #app-print-portal table {
         width: 100% !important;
         border-collapse: collapse !important;
-        font-size: 9.5pt !important;
-        margin-top: 12px !important;
+        font-size: 9pt !important;
+        margin-top: 10px !important;
       }
       #app-print-portal thead {
         display: table-header-group !important;
@@ -64,7 +67,7 @@ function ensurePrintStyles(): void {
       }
       #app-print-portal th, #app-print-portal td {
         border: 1px solid #d1d5db !important;
-        padding: 6px 8px !important;
+        padding: 5px 7px !important;
         text-align: left !important;
         color: #111827 !important;
       }
@@ -73,6 +76,11 @@ function ensurePrintStyles(): void {
         font-weight: 700 !important;
         color: #111827 !important;
       }
+      #app-print-portal .bloco-assinatura {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-top: 20px !important;
+      }
       #app-print-portal .text-center { text-align: center !important; }
       #app-print-portal .text-right { text-align: right !important; }
       #app-print-portal .font-bold { font-weight: 700 !important; }
@@ -80,7 +88,6 @@ function ensurePrintStyles(): void {
       #app-print-portal .uppercase { text-transform: uppercase !important; }
     }
   `;
-  document.head.appendChild(styleEl);
 }
 
 /**
@@ -157,8 +164,13 @@ function createPrintableClone(element: HTMLElement): HTMLElement {
 /**
  * Envia o documento imediatamente para a impressora.
  */
-export function printElementDirectly(elementId: string, documentTitle: string): void {
-  ensurePrintStyles();
+export function printElementDirectly(
+  elementId: string,
+  documentTitle: string,
+  options?: { orientation?: 'portrait' | 'landscape' }
+): void {
+  const orientation = options?.orientation || (elementId.includes('relatorio') ? 'landscape' : 'portrait');
+  ensurePrintStyles(orientation);
 
   const sourceElement = document.getElementById(elementId);
   if (!sourceElement) {
