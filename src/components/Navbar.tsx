@@ -67,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                  Gestão de Estágios
+                  Portal de Estágios ETER
                   <span className="hidden md:inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                     Cursos Técnicos
                   </span>
