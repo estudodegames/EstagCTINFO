@@ -244,7 +244,7 @@ export function generateRelatorioFrequenciaPDF({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(79, 70, 229);
-  doc.text('ORIENTAÇÃO DE ESTÁGIO SUPERVISIONADO • CURSOS TÉCNICOS', pageWidth / 2, y, { align: 'center' });
+  doc.text('ESCOLA TÉCNICA ESTADUAL REPÚBLICA - ETER', pageWidth / 2, y, { align: 'center' });
   y += 5;
 
   doc.setFontSize(12);
@@ -260,14 +260,18 @@ export function generateRelatorioFrequenciaPDF({
   doc.text(`RELATÓRIO MENSAL DE FREQUÊNCIA À REUNIÃO DE ACOMPANHAMENTO — MÊS DE ${nomeMesAno.toUpperCase()}`, pageWidth / 2, y, { align: 'center' });
   y += 6;
 
+  // Ordena alunos em ordem alfabética pelo nome
+  const sortedAlunos = [...alunos].sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+  );
+
   // Tabela com autoTable
   const presencasMap = reuniao?.presencas || {};
-  const tableData = alunos.map((aluno) => {
+  const tableData = sortedAlunos.map((aluno) => {
     const freq = presencasMap[aluno.id];
     const isPresente = freq?.status === 'Presença';
     const isFalta = freq?.status === 'Falta';
     const statusText = isPresente ? 'PRESENÇA' : isFalta ? 'FALTA' : 'Pendente';
-    const justificativa = freq?.justificativa || '-';
 
     return [
       aluno.matricula,
@@ -276,19 +280,18 @@ export function generateRelatorioFrequenciaPDF({
       `${aluno.turma || '-'} ${aluno.ano ? `(${aluno.ano})` : ''}`,
       aluno.localEstagio,
       statusText,
-      justificativa,
     ];
   });
 
   autoTable(doc, {
     startY: y,
-    head: [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma / Ano', 'Local de Estágio', 'Frequência no Mês', 'Observação / Justificativa']],
+    head: [['Matrícula', 'Nome do Aluno', 'Curso', 'Turma / Ano', 'Local de Estágio', 'Frequência no Mês']],
     body: tableData,
     margin: { left: 14, right: 14 },
     theme: 'grid',
     styles: {
-      fontSize: 8,
-      cellPadding: 2.2,
+      fontSize: 8.5,
+      cellPadding: 2.5,
       font: 'helvetica',
       textColor: [31, 41, 55],
     },
@@ -300,13 +303,12 @@ export function generateRelatorioFrequenciaPDF({
       lineWidth: 0.2,
     },
     columnStyles: {
-      0: { cellWidth: 26, fontStyle: 'bold' },
-      1: { cellWidth: 52 },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 26 },
-      4: { cellWidth: 54 },
-      5: { cellWidth: 32, halign: 'center' },
-      6: { cellWidth: 'auto' },
+      0: { cellWidth: 32, fontStyle: 'bold' },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 'auto' },
+      5: { cellWidth: 38, halign: 'center' },
     },
     didParseCell: (data) => {
       if (data.section === 'body' && data.column.index === 5) {
@@ -419,8 +421,11 @@ export function generateRelatorioGeralPDF({
   doc.text('RELATÓRIO GERAL DE TODOS OS ESTAGIÁRIOS CADASTRADOS', pageWidth / 2, y, { align: 'center' });
   y += 6;
 
-  // Tabela
-  const tableData = alunos.map((aluno) => [
+  // Tabela com alunos ordenados em ordem alfabética pelo nome
+  const sortedAlunos = [...alunos].sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+  );
+  const tableData = sortedAlunos.map((aluno) => [
     aluno.matricula,
     aluno.nome,
     aluno.curso || 'Jogos',
@@ -550,8 +555,11 @@ export function generateRelatorioAtivosPDF({
   doc.text(`RELATÓRIO DE ESTAGIÁRIOS ATIVOS — MÊS DE ${nomeMesAno.toUpperCase()}`, pageWidth / 2, y, { align: 'center' });
   y += 6;
 
-  // Tabela
-  const tableData = alunos.map((aluno) => [
+  // Tabela com estagiários ativos ordenados em ordem alfabética pelo nome
+  const sortedAlunos = [...alunos].sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+  );
+  const tableData = sortedAlunos.map((aluno) => [
     aluno.matricula,
     aluno.nome,
     aluno.curso || 'Jogos',

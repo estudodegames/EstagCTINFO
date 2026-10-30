@@ -279,7 +279,7 @@ export default function App() {
 
   // Filtro reativo em memória
   const filteredEstagios = useMemo(() => {
-    return estagios.filter((record) => {
+    const list = estagios.filter((record) => {
       const q = searchTerm.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -304,6 +304,11 @@ export default function App() {
 
       return matchesSearch && matchesStatus && matchesTurma && matchesCurso;
     });
+
+    // Ordenação alfabética pelo campo ALUNO (nome do estudante)
+    return list.sort((a, b) =>
+      a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+    );
   }, [estagios, searchTerm, statusFilter, turmaFilter, cursoFilter]);
 
   // Se não estiver autenticado, exige login com Conta Google Autorizada ou Chave de Acesso

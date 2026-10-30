@@ -72,11 +72,13 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
   const reuniaoDoMes = reunioes.find((r) => r.mesAno === mesAnoFiltro) || null;
   const presencasMap = reuniaoDoMes?.presencas || {};
 
-  // Filtra alunos pelo curso selecionado (se aplicável)
-  const alunosFiltrados = alunos.filter((a) => {
-    if (cursoFiltro === 'Todos') return true;
-    return a.curso === cursoFiltro;
-  });
+  // Filtra alunos pelo curso selecionado (se aplicável) e ordena em ordem alfabética pelo nome
+  const alunosFiltrados = alunos
+    .filter((a) => {
+      if (cursoFiltro === 'Todos') return true;
+      return a.curso === cursoFiltro;
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
 
   // Estatísticas de Frequência do Mês
   let countPresentes = 0;
@@ -312,7 +314,9 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
           {/* Cabeçalho Oficial Timbrado */}
           <div className="text-center pb-4 border-b-2 border-slate-700 print:border-black space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-indigo-400 print:text-gray-700">
-              ORIENTAÇÃO DE ESTÁGIO SUPERVISIONADO • CURSOS TÉCNICOS
+              {tab === 'frequencia'
+                ? 'ESCOLA TÉCNICA ESTADUAL REPÚBLICA - ETER'
+                : 'ORIENTAÇÃO DE ESTÁGIO SUPERVISIONADO • CURSOS TÉCNICOS'}
             </p>
             <h1 className="text-base sm:text-lg font-bold uppercase text-white print:text-black">
               {cursoFiltro === 'Todos'
@@ -349,7 +353,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                         <th className="py-2.5 px-3">Turma / Ano</th>
                         <th className="py-2.5 px-3">Local de Estágio</th>
                         <th className="py-2.5 px-3 text-center">Frequência no Mês</th>
-                        <th className="py-2.5 px-3">Observação / Justificativa</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 print:divide-gray-300">
@@ -391,9 +394,6 @@ export const RelatoriosModal: React.FC<RelatoriosModalProps> = ({
                                   Pendente
                                 </span>
                               )}
-                            </td>
-                            <td className="py-2.5 px-3 text-[11px] text-slate-400 print:text-gray-700 italic">
-                              {freq?.justificativa || '-'}
                             </td>
                           </tr>
                         );
